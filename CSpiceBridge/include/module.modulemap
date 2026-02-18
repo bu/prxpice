@@ -1,0 +1,4 @@
+module CSpiceBridge {
+    header "spice_bridge.h"
+    export *
+}

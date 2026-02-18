@@ -1,0 +1,551 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A100000001 /* PrXpiceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000001; };
+		A100000002 /* ServerConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000002; };
+		A100000003 /* VMInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000003; };
+		A100000004 /* SpiceConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000004; };
+		A100000005 /* ConnectionListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000005; };
+		A100000006 /* AddConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000006; };
+		A100000007 /* VMListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000007; };
+		A100000008 /* VMDisplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000008; };
+		A100000009 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000009; };
+		A100000010 /* ConnectionListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000010; };
+		A100000011 /* VMListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000011; };
+		A100000012 /* VMDisplayViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000012; };
+		A100000013 /* ProxmoxAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000013; };
+		A100000014 /* ProxmoxAuthenticator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000014; };
+		A100000015 /* ProxmoxEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000015; };
+		A100000016 /* SpiceSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000016; };
+		A100000017 /* SpiceDisplayHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000017; };
+		A100000018 /* SpiceInputHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000018; };
+		A100000019 /* MetalRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000019; };
+		A100000020 /* MetalDisplayViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000020; };
+		A100000021 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = B100000021; };
+		A100000022 /* TouchToMouseMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000022; };
+		A100000023 /* KeyboardManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000023; };
+		A100000024 /* ScancodeMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000024; };
+		A100000025 /* InputToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000025; };
+		A100000026 /* ConnectionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000026; };
+		A100000027 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000027; };
+		A100000028 /* GLibRunLoopIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000028; };
+		A100000029 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000029; };
+		A100000030 /* spice_bridge.c in Sources */ = {isa = PBXBuildFile; fileRef = B100000030; };
+		A100000031 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100000040; };
+		A100000032 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100000041; };
+		A100000033 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100000042; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B100000001 /* PrXpiceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrXpiceApp.swift; sourceTree = "<group>"; };
+		B100000002 /* ServerConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConnection.swift; sourceTree = "<group>"; };
+		B100000003 /* VMInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMInfo.swift; sourceTree = "<group>"; };
+		B100000004 /* SpiceConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpiceConfig.swift; sourceTree = "<group>"; };
+		B100000005 /* ConnectionListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionListView.swift; sourceTree = "<group>"; };
+		B100000006 /* AddConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddConnectionView.swift; sourceTree = "<group>"; };
+		B100000007 /* VMListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMListView.swift; sourceTree = "<group>"; };
+		B100000008 /* VMDisplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMDisplayView.swift; sourceTree = "<group>"; };
+		B100000009 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		B100000010 /* ConnectionListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionListViewModel.swift; sourceTree = "<group>"; };
+		B100000011 /* VMListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMListViewModel.swift; sourceTree = "<group>"; };
+		B100000012 /* VMDisplayViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMDisplayViewModel.swift; sourceTree = "<group>"; };
+		B100000013 /* ProxmoxAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxmoxAPIClient.swift; sourceTree = "<group>"; };
+		B100000014 /* ProxmoxAuthenticator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxmoxAuthenticator.swift; sourceTree = "<group>"; };
+		B100000015 /* ProxmoxEndpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxmoxEndpoints.swift; sourceTree = "<group>"; };
+		B100000016 /* SpiceSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpiceSessionManager.swift; sourceTree = "<group>"; };
+		B100000017 /* SpiceDisplayHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpiceDisplayHandler.swift; sourceTree = "<group>"; };
+		B100000018 /* SpiceInputHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpiceInputHandler.swift; sourceTree = "<group>"; };
+		B100000019 /* MetalRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalRenderer.swift; sourceTree = "<group>"; };
+		B100000020 /* MetalDisplayViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalDisplayViewController.swift; sourceTree = "<group>"; };
+		B100000021 /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
+		B100000022 /* TouchToMouseMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchToMouseMapper.swift; sourceTree = "<group>"; };
+		B100000023 /* KeyboardManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardManager.swift; sourceTree = "<group>"; };
+		B100000024 /* ScancodeMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScancodeMap.swift; sourceTree = "<group>"; };
+		B100000025 /* InputToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputToolbarView.swift; sourceTree = "<group>"; };
+		B100000026 /* ConnectionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStore.swift; sourceTree = "<group>"; };
+		B100000027 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+		B100000028 /* GLibRunLoopIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GLibRunLoopIntegration.swift; sourceTree = "<group>"; };
+		B100000029 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
+		B100000030 /* spice_bridge.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = spice_bridge.c; sourceTree = "<group>"; };
+		B100000031 /* spice_bridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = spice_bridge.h; sourceTree = "<group>"; };
+		B100000032 /* module.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = module.modulemap; sourceTree = "<group>"; };
+		B100000033 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B100000039 /* PrXpice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PrXpice.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B100000040 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		B100000041 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		B100000042 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C100000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A100000031 /* Metal.framework in Frameworks */,
+				A100000032 /* MetalKit.framework in Frameworks */,
+				A100000033 /* Security.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D100000001 /* Root */ = {
+			isa = PBXGroup;
+			children = (
+				D100000002 /* PrXpice */,
+				D100000020 /* CSpiceBridge */,
+				D100000030 /* Frameworks */,
+				D100000031 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D100000002 /* PrXpice */ = {
+			isa = PBXGroup;
+			children = (
+				D100000003 /* App */,
+				D100000004 /* Models */,
+				D100000005 /* Views */,
+				D100000006 /* ViewModels */,
+				D100000007 /* Networking */,
+				D100000008 /* SpiceEngine */,
+				D100000009 /* Rendering */,
+				D100000010 /* Input */,
+				D100000011 /* Persistence */,
+				D100000012 /* Utilities */,
+			);
+			path = PrXpice;
+			sourceTree = "<group>";
+		};
+		D100000003 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B100000001 /* PrXpiceApp.swift */,
+				B100000033 /* Info.plist */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		D100000004 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				B100000002 /* ServerConnection.swift */,
+				B100000003 /* VMInfo.swift */,
+				B100000004 /* SpiceConfig.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		D100000005 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				B100000005 /* ConnectionListView.swift */,
+				B100000006 /* AddConnectionView.swift */,
+				B100000007 /* VMListView.swift */,
+				B100000008 /* VMDisplayView.swift */,
+				B100000009 /* SettingsView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		D100000006 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				B100000010 /* ConnectionListViewModel.swift */,
+				B100000011 /* VMListViewModel.swift */,
+				B100000012 /* VMDisplayViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		D100000007 /* Networking */ = {
+			isa = PBXGroup;
+			children = (
+				B100000013 /* ProxmoxAPIClient.swift */,
+				B100000014 /* ProxmoxAuthenticator.swift */,
+				B100000015 /* ProxmoxEndpoints.swift */,
+			);
+			path = Networking;
+			sourceTree = "<group>";
+		};
+		D100000008 /* SpiceEngine */ = {
+			isa = PBXGroup;
+			children = (
+				B100000016 /* SpiceSessionManager.swift */,
+				B100000017 /* SpiceDisplayHandler.swift */,
+				B100000018 /* SpiceInputHandler.swift */,
+			);
+			path = SpiceEngine;
+			sourceTree = "<group>";
+		};
+		D100000009 /* Rendering */ = {
+			isa = PBXGroup;
+			children = (
+				B100000019 /* MetalRenderer.swift */,
+				B100000020 /* MetalDisplayViewController.swift */,
+				B100000021 /* Shaders.metal */,
+			);
+			path = Rendering;
+			sourceTree = "<group>";
+		};
+		D100000010 /* Input */ = {
+			isa = PBXGroup;
+			children = (
+				B100000022 /* TouchToMouseMapper.swift */,
+				B100000023 /* KeyboardManager.swift */,
+				B100000024 /* ScancodeMap.swift */,
+				B100000025 /* InputToolbarView.swift */,
+			);
+			path = Input;
+			sourceTree = "<group>";
+		};
+		D100000011 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				B100000026 /* ConnectionStore.swift */,
+				B100000027 /* KeychainHelper.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		D100000012 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				B100000028 /* GLibRunLoopIntegration.swift */,
+				B100000029 /* Logger.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		D100000020 /* CSpiceBridge */ = {
+			isa = PBXGroup;
+			children = (
+				D100000021 /* include */,
+				D100000022 /* src */,
+			);
+			path = CSpiceBridge;
+			sourceTree = "<group>";
+		};
+		D100000021 /* include */ = {
+			isa = PBXGroup;
+			children = (
+				B100000031 /* spice_bridge.h */,
+				B100000032 /* module.modulemap */,
+			);
+			path = include;
+			sourceTree = "<group>";
+		};
+		D100000022 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				B100000030 /* spice_bridge.c */,
+			);
+			path = src;
+			sourceTree = "<group>";
+		};
+		D100000030 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				B100000040 /* Metal.framework */,
+				B100000041 /* MetalKit.framework */,
+				B100000042 /* Security.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		D100000031 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B100000039 /* PrXpice.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		E100000001 /* PrXpice */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F100000003 /* Build configuration list for PBXNativeTarget "PrXpice" */;
+			buildPhases = (
+				E100000002 /* Sources */,
+				C100000001 /* Frameworks */,
+				E100000004 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = PrXpice;
+			productName = PrXpice;
+			productReference = B100000039 /* PrXpice.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E100000010 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					E100000001 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = F100000001 /* Build configuration list for PBXProject "PrXpice" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = D100000001 /* Root */;
+			productRefGroup = D100000031 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				E100000001 /* PrXpice */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E100000004 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E100000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A100000001 /* PrXpiceApp.swift in Sources */,
+				A100000002 /* ServerConnection.swift in Sources */,
+				A100000003 /* VMInfo.swift in Sources */,
+				A100000004 /* SpiceConfig.swift in Sources */,
+				A100000005 /* ConnectionListView.swift in Sources */,
+				A100000006 /* AddConnectionView.swift in Sources */,
+				A100000007 /* VMListView.swift in Sources */,
+				A100000008 /* VMDisplayView.swift in Sources */,
+				A100000009 /* SettingsView.swift in Sources */,
+				A100000010 /* ConnectionListViewModel.swift in Sources */,
+				A100000011 /* VMListViewModel.swift in Sources */,
+				A100000012 /* VMDisplayViewModel.swift in Sources */,
+				A100000013 /* ProxmoxAPIClient.swift in Sources */,
+				A100000014 /* ProxmoxAuthenticator.swift in Sources */,
+				A100000015 /* ProxmoxEndpoints.swift in Sources */,
+				A100000016 /* SpiceSessionManager.swift in Sources */,
+				A100000017 /* SpiceDisplayHandler.swift in Sources */,
+				A100000018 /* SpiceInputHandler.swift in Sources */,
+				A100000019 /* MetalRenderer.swift in Sources */,
+				A100000020 /* MetalDisplayViewController.swift in Sources */,
+				A100000021 /* Shaders.metal in Sources */,
+				A100000022 /* TouchToMouseMapper.swift in Sources */,
+				A100000023 /* KeyboardManager.swift in Sources */,
+				A100000024 /* ScancodeMap.swift in Sources */,
+				A100000025 /* InputToolbarView.swift in Sources */,
+				A100000026 /* ConnectionStore.swift in Sources */,
+				A100000027 /* KeychainHelper.swift in Sources */,
+				A100000028 /* GLibRunLoopIntegration.swift in Sources */,
+				A100000029 /* Logger.swift in Sources */,
+				A100000030 /* spice_bridge.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		F100000010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		F100000011 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		F100000020 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = PrXpice/App/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/Vendor/lib";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.prxpice.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INCLUDE_PATHS = "$(PROJECT_DIR)/CSpiceBridge/include";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/Vendor/include",
+					"$(PROJECT_DIR)/CSpiceBridge/include",
+				);
+				OTHER_LDFLAGS = (
+					"-lspice-client-glib-2.0",
+					"-lglib-2.0",
+					"-lgobject-2.0",
+					"-lgio-2.0",
+					"-ljson-glib-1.0",
+					"-lpixman-1",
+					"-lopus",
+					"-ljpeg",
+					"-lssl",
+					"-lcrypto",
+					"-lffi",
+					"-lz",
+					"-liconv",
+					"-lresolv",
+				);
+			};
+			name = Debug;
+		};
+		F100000021 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = PrXpice/App/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/Vendor/lib";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.prxpice.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INCLUDE_PATHS = "$(PROJECT_DIR)/CSpiceBridge/include";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				HEADER_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/Vendor/include",
+					"$(PROJECT_DIR)/CSpiceBridge/include",
+				);
+				OTHER_LDFLAGS = (
+					"-lspice-client-glib-2.0",
+					"-lglib-2.0",
+					"-lgobject-2.0",
+					"-lgio-2.0",
+					"-ljson-glib-1.0",
+					"-lpixman-1",
+					"-lopus",
+					"-ljpeg",
+					"-lssl",
+					"-lcrypto",
+					"-lffi",
+					"-lz",
+					"-liconv",
+					"-lresolv",
+				);
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F100000001 /* Build configuration list for PBXProject "PrXpice" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F100000010 /* Debug */,
+				F100000011 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F100000003 /* Build configuration list for PBXNativeTarget "PrXpice" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F100000020 /* Debug */,
+				F100000021 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = E100000010 /* Project object */;
+}
