@@ -221,9 +221,7 @@ CROSSEOF
             --cross-file=ios-cross.ini \
             --prefix="$PREFIX" \
             --default-library=static \
-            -Dtests=disabled \
-            -Ddemos=disabled \
-            -Dgtk=disabled
+            -Dtests=disabled
 
         ninja -C _build -j$NJOBS
         ninja -C _build install
