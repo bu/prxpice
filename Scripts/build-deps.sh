@@ -200,6 +200,11 @@ build_pixman() {
         tar xzf "$SOURCES_DIR/pixman-${PIXMAN_VERSION}.tar.gz"
         cd pixman-${PIXMAN_VERSION}
 
+        # Remove .func/.endfunc GAS directives from assembly files.
+        # Clang's integrated assembler does not support them; they are
+        # debug-only markers that have no effect on generated code.
+        find . -name "*.S" | xargs sed -i '' '/^\s*\.func\b/d; /^\s*\.endfunc\b/d'
+
         cat > ios-cross.ini <<CROSSEOF
 [binaries]
 c = '$CC'
