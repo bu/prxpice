@@ -171,7 +171,6 @@ CROSSEOF
             -Dtests=false \
             -Dglib_debug=disabled \
             -Dlibelf=disabled \
-            -Dintrospection=disabled \
             -Dnls=disabled \
             -Dlibmount=disabled \
             -Dxattr=false
