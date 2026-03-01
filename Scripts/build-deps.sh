@@ -158,7 +158,7 @@ strip = '$STRIP'
 pkg-config = '$(which pkg-config)'
 
 [built-in options]
-c_args = ['-arch', 'arm64', '-mios-version-min=$IOS_MIN_VERSION', '-isysroot', '$SDKROOT', '-I$PREFIX/include']
+c_args = ['-arch', 'arm64', '-mios-version-min=$IOS_MIN_VERSION', '-isysroot', '$SDKROOT', '-I$SCRIPT_DIR/ios-stubs', '-I$PREFIX/include']
 c_link_args = ['-arch', 'arm64', '-mios-version-min=$IOS_MIN_VERSION', '-isysroot', '$SDKROOT', '-L$PREFIX/lib']
 
 [host_machine]
