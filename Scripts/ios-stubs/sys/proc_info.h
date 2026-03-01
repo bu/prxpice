@@ -6,6 +6,15 @@
 #ifndef SYS_PROC_INFO_H_IOS_STUB
 #define SYS_PROC_INFO_H_IOS_STUB
 
-#define PROC_PIDPATHINFO_MAXSIZE 4096
+#include <stdint.h>
+
+#define PROC_PIDLISTFDS 1
+
+struct proc_fdinfo {
+    int32_t  proc_fd;
+    uint32_t proc_fdtype;
+};
+
+#define PROC_PIDLISTFD_SIZE ((int)sizeof(struct proc_fdinfo))
 
 #endif /* SYS_PROC_INFO_H_IOS_STUB */
