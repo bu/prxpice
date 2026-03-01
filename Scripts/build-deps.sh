@@ -399,7 +399,6 @@ CROSSEOF
             -Dsasl=disabled \
             -Dsmartcard=disabled \
             -Dcoroutine=gthread \
-            -Dintrospection=disabled \
             -Dvapi=disabled \
             -Dgtk_doc=disabled \
             -Dtests=false \
