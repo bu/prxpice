@@ -115,7 +115,7 @@ build_libffi() {
         tar xzf "$SOURCES_DIR/libffi-${LIBFFI_VERSION}.tar.gz"
         cd libffi-${LIBFFI_VERSION}
 
-        CC="$CC" CFLAGS="$CFLAGS" LDFLAGS="$LDFLAGS" \
+        CC="$CC" CFLAGS="$CFLAGS -Wno-deprecated-declarations" LDFLAGS="$LDFLAGS" \
         ./configure \
             --host=$HOST \
             --prefix="$PREFIX" \
@@ -150,7 +150,7 @@ build_glib() {
 c = '$CC'
 ar = '$AR'
 strip = '$STRIP'
-pkgconfig = '$(which pkg-config)'
+pkg-config = '$(which pkg-config)'
 
 [built-in options]
 c_args = ['-arch', 'arm64', '-mios-version-min=$IOS_MIN_VERSION', '-isysroot', '$SDKROOT', '-I$PREFIX/include']
@@ -305,7 +305,7 @@ build_json_glib() {
 c = '$CC'
 ar = '$AR'
 strip = '$STRIP'
-pkgconfig = '$(which pkg-config)'
+pkg-config = '$(which pkg-config)'
 
 [built-in options]
 c_args = ['-arch', 'arm64', '-mios-version-min=$IOS_MIN_VERSION', '-isysroot', '$SDKROOT', '-I$PREFIX/include', '-I$PREFIX/include/glib-2.0', '-I$PREFIX/lib/glib-2.0/include']
@@ -323,7 +323,6 @@ CROSSEOF
             --prefix="$PREFIX" \
             --default-library=static \
             -Dtests=false \
-            -Dintrospection=disabled \
             -Dgtk_doc=disabled
 
         ninja -C _build -j$NJOBS
@@ -373,7 +372,7 @@ build_spice_client() {
 c = '$CC'
 ar = '$AR'
 strip = '$STRIP'
-pkgconfig = '$(which pkg-config)'
+pkg-config = '$(which pkg-config)'
 
 [built-in options]
 c_args = ['-arch', 'arm64', '-mios-version-min=$IOS_MIN_VERSION', '-isysroot', '$SDKROOT', '-I$PREFIX/include', '-I$PREFIX/include/glib-2.0', '-I$PREFIX/lib/glib-2.0/include', '-I$PREFIX/include/json-glib-1.0', '-I$PREFIX/include/spice-1', '-I$PREFIX/include/pixman-1', '-DHAVE_SPICE']
