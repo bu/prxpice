@@ -223,8 +223,7 @@ CROSSEOF
             --default-library=static \
             -Dtests=disabled \
             -Darm-simd=disabled \
-            -Dneon=disabled \
-            -Da64=disabled
+            -Dneon=disabled
 
         ninja -C _build -j$NJOBS
         ninja -C _build install
