@@ -142,7 +142,8 @@ build_glib() {
     if [ ! -f "$PREFIX/lib/libglib-2.0.a" ]; then
         # distutils was removed in Python 3.12+; setuptools provides it as a shim
         # required by GLib's gdbus-codegen
-        python3 -m pip install --quiet setuptools 2>/dev/null || true
+        python3 -m pip install setuptools --break-system-packages --quiet 2>/dev/null || \
+        python3 -m pip install setuptools --quiet || true
 
         rm -rf glib-${GLIB_VERSION}
         tar xJf "$SOURCES_DIR/glib-${GLIB_VERSION}.tar.xz"
