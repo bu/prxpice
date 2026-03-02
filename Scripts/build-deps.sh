@@ -277,6 +277,7 @@ build_libjpeg() {
         cmake -B _build \
             -DCMAKE_INSTALL_PREFIX="$PREFIX" \
             -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_SYSTEM_PROCESSOR=arm64 \
             -DCMAKE_C_COMPILER="$CC" \
             -DCMAKE_C_COMPILER_AR="$AR" \
             -DCMAKE_OSX_SYSROOT="$SDKROOT" \
