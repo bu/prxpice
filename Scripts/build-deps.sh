@@ -39,8 +39,8 @@ HOST="aarch64-apple-darwin"
 
 NJOBS=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
-export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
-export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
+export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig"
+export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig:$PREFIX/share/pkgconfig"
 
 # Library versions
 OPENSSL_VERSION="3.2.1"
