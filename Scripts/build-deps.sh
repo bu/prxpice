@@ -404,7 +404,6 @@ CROSSEOF
             -Dwebdav=disabled \
             -Dusbredir=disabled \
             -Dpolkit=disabled \
-            -Dpulseaudio=disabled \
             -Dlz4=disabled \
             -Dsasl=disabled \
             -Dsmartcard=disabled \
@@ -412,7 +411,6 @@ CROSSEOF
             -Dvapi=disabled \
             -Dgtk_doc=disabled \
             -Dintrospection=disabled \
-            -Dtests=false \
             -Dopus=enabled
 
         ninja -C _build -j$NJOBS
