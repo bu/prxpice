@@ -372,21 +372,29 @@ build_spice_client() {
     download "https://gitlab.freedesktop.org/spice/spice-gtk/-/archive/v${SPICE_GTK_VERSION}/spice-gtk-v${SPICE_GTK_VERSION}.tar.gz" \
              "$SOURCES_DIR/spice-gtk-${SPICE_GTK_VERSION}.tar.gz"
 
-    # spice-common is a git submodule — not included in GitLab archive tarballs
+    # Git submodules are not included in GitLab archive tarballs — download separately
     local SPICE_COMMON_COMMIT="58d375e5eadc6fb9e587e99fd81adcb95d01e8d6"
+    local KEYCODEMAPDB_COMMIT="14cdba29ecd7448310fe4ff890e67830b1a40f64"
     download "https://gitlab.freedesktop.org/spice/spice-common/-/archive/${SPICE_COMMON_COMMIT}/spice-common-${SPICE_COMMON_COMMIT}.tar.gz" \
              "$SOURCES_DIR/spice-common-${SPICE_COMMON_COMMIT}.tar.gz"
+    download "https://gitlab.com/keycodemap/keycodemapdb/-/archive/${KEYCODEMAPDB_COMMIT}/keycodemapdb-${KEYCODEMAPDB_COMMIT}.tar.gz" \
+             "$SOURCES_DIR/keycodemapdb-${KEYCODEMAPDB_COMMIT}.tar.gz"
 
     if [ ! -f "$PREFIX/lib/libspice-client-glib-2.0.a" ]; then
         rm -rf spice-gtk-v${SPICE_GTK_VERSION}
         tar xzf "$SOURCES_DIR/spice-gtk-${SPICE_GTK_VERSION}.tar.gz"
         cd spice-gtk-v${SPICE_GTK_VERSION}
 
-        # Populate the spice-common submodule directory
+        # Populate submodule directories
         rm -rf subprojects/spice-common
         mkdir -p subprojects/spice-common
         tar xzf "$SOURCES_DIR/spice-common-${SPICE_COMMON_COMMIT}.tar.gz" \
             --strip-components=1 -C subprojects/spice-common
+
+        rm -rf subprojects/keycodemapdb
+        mkdir -p subprojects/keycodemapdb
+        tar xzf "$SOURCES_DIR/keycodemapdb-${KEYCODEMAPDB_COMMIT}.tar.gz" \
+            --strip-components=1 -C subprojects/keycodemapdb
 
         # spice-common code generator requires these Python modules
         python3 -m pip install six pyparsing --break-system-packages 2>/dev/null || true
