@@ -463,27 +463,37 @@ with open('src/channel-display-priv.h', 'w') as f:
 print("channel-display-priv.h: GStreamer guarded")
 PYEOF
 
-        # Patch 4: channel-display.c — guard hand_pipeline_to_widget implementation
+        # Patch 4: channel-display.c — guard all GStreamer-specific code
         python3 - << 'PYEOF'
 with open('src/channel-display.c') as f:
     content = f.read()
-old = (
+
+# 4a: Guard the GstPipeline signal registration in class_init
+old_sig = (
+    "    signals[SPICE_DISPLAY_OVERLAY] =\n"
+    "        g_signal_new(\"gst-video-overlay\",\n"
+)
+# Find the end of this signal registration (closing semicolon after GST_TYPE_PIPELINE)
+sig_start = content.index(old_sig)
+sig_end = content.index("GST_TYPE_PIPELINE);", sig_start) + len("GST_TYPE_PIPELINE);")
+content = (content[:sig_start] +
+           "#ifdef HAVE_GSTREAMER\n" +
+           content[sig_start:sig_end] + "\n#endif" +
+           content[sig_end:])
+
+# 4b: Guard hand_pipeline_to_widget implementation
+old_func = (
     "G_GNUC_INTERNAL\n"
     "gboolean hand_pipeline_to_widget(display_stream *st, GstPipeline *pipeline)\n"
 )
-new = (
+new_func = (
     "#ifdef HAVE_GSTREAMER\n"
     "G_GNUC_INTERNAL\n"
     "gboolean hand_pipeline_to_widget(display_stream *st, GstPipeline *pipeline)\n"
 )
-assert old in content, "hand_pipeline_to_widget not found in channel-display.c"
-# Find the closing brace of the function
-idx = content.index(old)
-func_start = idx
-# Find end of function by scanning for the closing brace
-brace_idx = content.index(old) + len(old)
-# Skip to opening brace
-brace_idx = content.index('{', brace_idx)
+assert old_func in content, "hand_pipeline_to_widget not found in channel-display.c"
+idx = content.index(old_func)
+brace_idx = content.index('{', idx + len(old_func))
 depth = 1
 brace_idx += 1
 while depth > 0:
@@ -491,9 +501,10 @@ while depth > 0:
     if c == '{': depth += 1
     elif c == '}': depth -= 1
     brace_idx += 1
-# brace_idx is now just past the closing }
-end_idx = brace_idx
-content = content[:func_start] + new + content[func_start+len(old):end_idx] + "\n#endif\n" + content[end_idx:]
+content = (content[:idx] + new_func +
+           content[idx+len(old_func):brace_idx] + "\n#endif\n" +
+           content[brace_idx:])
+
 with open('src/channel-display.c', 'w') as f:
     f.write(content)
 print("channel-display.c: hand_pipeline_to_widget guarded")
