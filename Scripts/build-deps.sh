@@ -332,7 +332,8 @@ CROSSEOF
             --prefix="$PREFIX" \
             --default-library=static \
             -Dtests=false \
-            -Dgtk_doc=disabled
+            -Dgtk_doc=disabled \
+            -Dintrospection=disabled
 
         ninja -C _build -j$NJOBS
         ninja -C _build install
