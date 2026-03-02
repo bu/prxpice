@@ -399,6 +399,126 @@ build_spice_client() {
         # spice-common code generator requires these Python modules
         python3 -m pip install six pyparsing --break-system-packages 2>/dev/null || true
 
+        # GStreamer is not available on iOS — patch it to be optional
+        # Patch 1: meson.build — make GStreamer deps optional, expose spice_glib_has_gstreamer
+        python3 - << 'PYEOF'
+import re, sys
+with open('meson.build') as f:
+    content = f.read()
+pattern = r"gstreamer_version = '1\.10'.*?endforeach"
+replacement = (
+    "spice_glib_has_gstreamer = false\n"
+    "_gst_probe = dependency('gstreamer-1.0', required: false)\n"
+    "if _gst_probe.found()\n"
+    "  foreach dep : ['gstreamer-1.0', 'gstreamer-base-1.0', 'gstreamer-app-1.0', 'gstreamer-audio-1.0', 'gstreamer-video-1.0']\n"
+    "    spice_glib_deps += dependency(dep, version: '>= 1.10')\n"
+    "  endforeach\n"
+    "  spice_glib_has_gstreamer = true\n"
+    "  spice_gtk_config_data.set('HAVE_GSTREAMER', '1')\n"
+    "endif"
+)
+new, n = re.subn(pattern, replacement, content, flags=re.DOTALL)
+assert n == 1, f"Expected 1 GStreamer block replacement, got {n}"
+with open('meson.build', 'w') as f:
+    f.write(new)
+print("meson.build: GStreamer is now optional")
+PYEOF
+
+        # Patch 2: src/meson.build — make channel-display-gst.c conditional
+        python3 - << 'PYEOF'
+with open('src/meson.build') as f:
+    content = f.read()
+# Remove from unconditional list
+content = content.replace("  'channel-display-gst.c',\n", "")
+# Inject conditional just before the library() call
+marker = "spice_client_glib_lib = library("
+conditional = (
+    "if spice_glib_has_gstreamer\n"
+    "  spice_client_glib_sources += files('channel-display-gst.c')\n"
+    "else\n"
+    "  spice_client_glib_sources += files('channel-display-gst-stub.c')\n"
+    "endif\n"
+)
+assert marker in content, "library() call not found in src/meson.build"
+content = content.replace(marker, conditional + marker, 1)
+with open('src/meson.build', 'w') as f:
+    f.write(content)
+print("src/meson.build: channel-display-gst.c is now conditional")
+PYEOF
+
+        # Patch 3: channel-display-priv.h — guard GStreamer-specific include/decl
+        python3 - << 'PYEOF'
+with open('src/channel-display-priv.h') as f:
+    content = f.read()
+content = content.replace(
+    '#include <gst/gst.h>',
+    '#ifdef HAVE_GSTREAMER\n#include <gst/gst.h>\n#endif'
+)
+content = content.replace(
+    'gboolean hand_pipeline_to_widget(display_stream *st,  GstPipeline *pipeline);',
+    '#ifdef HAVE_GSTREAMER\ngboolean hand_pipeline_to_widget(display_stream *st,  GstPipeline *pipeline);\n#endif'
+)
+with open('src/channel-display-priv.h', 'w') as f:
+    f.write(content)
+print("channel-display-priv.h: GStreamer guarded")
+PYEOF
+
+        # Patch 4: channel-display.c — guard hand_pipeline_to_widget implementation
+        python3 - << 'PYEOF'
+with open('src/channel-display.c') as f:
+    content = f.read()
+old = (
+    "G_GNUC_INTERNAL\n"
+    "gboolean hand_pipeline_to_widget(display_stream *st, GstPipeline *pipeline)\n"
+)
+new = (
+    "#ifdef HAVE_GSTREAMER\n"
+    "G_GNUC_INTERNAL\n"
+    "gboolean hand_pipeline_to_widget(display_stream *st, GstPipeline *pipeline)\n"
+)
+assert old in content, "hand_pipeline_to_widget not found in channel-display.c"
+# Find the closing brace of the function
+idx = content.index(old)
+func_start = idx
+# Find end of function by scanning for the closing brace
+brace_idx = content.index(old) + len(old)
+# Skip to opening brace
+brace_idx = content.index('{', brace_idx)
+depth = 1
+brace_idx += 1
+while depth > 0:
+    c = content[brace_idx]
+    if c == '{': depth += 1
+    elif c == '}': depth -= 1
+    brace_idx += 1
+# brace_idx is now just past the closing }
+end_idx = brace_idx
+content = content[:func_start] + new + content[func_start+len(old):end_idx] + "\n#endif\n" + content[end_idx:]
+with open('src/channel-display.c', 'w') as f:
+    f.write(content)
+print("channel-display.c: hand_pipeline_to_widget guarded")
+PYEOF
+
+        # Patch 5: create stub for no-GStreamer builds
+        cat > src/channel-display-gst-stub.c << 'CEOF'
+/* channel-display-gst-stub.c
+ * Stub GStreamer video decoder — used when cross-compiling for targets
+ * (e.g. iOS) where GStreamer is not available. Video stream decoding is
+ * simply disabled; all other SPICE channels (display, input, cursor) work. */
+#include "config.h"
+#include "channel-display-priv.h"
+
+gboolean gstvideo_has_codec(int codec_type)
+{
+    return FALSE;
+}
+
+VideoDecoder* create_gstreamer_decoder(int codec_type, display_stream *stream)
+{
+    return NULL;
+}
+CEOF
+
         cat > ios-cross.ini <<CROSSEOF
 [binaries]
 c = '$CC'
