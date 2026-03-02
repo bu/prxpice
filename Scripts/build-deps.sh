@@ -347,13 +347,13 @@ CROSSEOF
 build_spice_protocol() {
     log "Building spice-protocol $SPICE_PROTOCOL_VERSION"
     cd "$BUILD_DIR"
-    download "https://www.spice-space.org/download/releases/spice-protocol/spice-protocol-${SPICE_PROTOCOL_VERSION}.tar.xz" \
-             "$SOURCES_DIR/spice-protocol-${SPICE_PROTOCOL_VERSION}.tar.xz"
+    download "https://gitlab.freedesktop.org/spice/spice-protocol/-/archive/v${SPICE_PROTOCOL_VERSION}/spice-protocol-v${SPICE_PROTOCOL_VERSION}.tar.gz" \
+             "$SOURCES_DIR/spice-protocol-${SPICE_PROTOCOL_VERSION}.tar.gz"
 
     if [ ! -d "$PREFIX/include/spice-1" ]; then
-        rm -rf spice-protocol-${SPICE_PROTOCOL_VERSION}
-        tar xJf "$SOURCES_DIR/spice-protocol-${SPICE_PROTOCOL_VERSION}.tar.xz"
-        cd spice-protocol-${SPICE_PROTOCOL_VERSION}
+        rm -rf spice-protocol-v${SPICE_PROTOCOL_VERSION}
+        tar xzf "$SOURCES_DIR/spice-protocol-${SPICE_PROTOCOL_VERSION}.tar.gz"
+        cd spice-protocol-v${SPICE_PROTOCOL_VERSION}
 
         meson setup _build \
             --prefix="$PREFIX"
@@ -369,13 +369,13 @@ build_spice_protocol() {
 build_spice_client() {
     log "Building spice-gtk $SPICE_GTK_VERSION (client-glib only)"
     cd "$BUILD_DIR"
-    download "https://www.spice-space.org/download/gtk/spice-gtk-${SPICE_GTK_VERSION}.tar.xz" \
-             "$SOURCES_DIR/spice-gtk-${SPICE_GTK_VERSION}.tar.xz"
+    download "https://gitlab.freedesktop.org/spice/spice-gtk/-/archive/v${SPICE_GTK_VERSION}/spice-gtk-v${SPICE_GTK_VERSION}.tar.gz" \
+             "$SOURCES_DIR/spice-gtk-${SPICE_GTK_VERSION}.tar.gz"
 
     if [ ! -f "$PREFIX/lib/libspice-client-glib-2.0.a" ]; then
-        rm -rf spice-gtk-${SPICE_GTK_VERSION}
-        tar xJf "$SOURCES_DIR/spice-gtk-${SPICE_GTK_VERSION}.tar.xz"
-        cd spice-gtk-${SPICE_GTK_VERSION}
+        rm -rf spice-gtk-v${SPICE_GTK_VERSION}
+        tar xzf "$SOURCES_DIR/spice-gtk-${SPICE_GTK_VERSION}.tar.gz"
+        cd spice-gtk-v${SPICE_GTK_VERSION}
 
         cat > ios-cross.ini <<CROSSEOF
 [binaries]
