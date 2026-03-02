@@ -411,6 +411,7 @@ CROSSEOF
             -Dcoroutine=gthread \
             -Dvapi=disabled \
             -Dgtk_doc=disabled \
+            -Dintrospection=disabled \
             -Dtests=false \
             -Dopus=enabled
 
