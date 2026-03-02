@@ -274,16 +274,15 @@ build_libjpeg() {
         tar xzf "$SOURCES_DIR/libjpeg-turbo-${LIBJPEG_VERSION}.tar.gz"
         cd libjpeg-turbo-${LIBJPEG_VERSION}
 
-        # string(CONFIGURE) was removed in CMake 3.31.
-        # In libjpeg-turbo it is used as a no-op (string(CONFIGURE "@GVER@" GVER)
-        # where GVER is already set by math(EXPR)), so removing the line is safe.
-        sed -i '' '/string(CONFIGURE/d' CMakeLists.txt
-
         cmake -B _build \
             -DCMAKE_INSTALL_PREFIX="$PREFIX" \
             -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_C_COMPILER="$CC" \
+            -DCMAKE_C_COMPILER_AR="$AR" \
+            -DCMAKE_OSX_SYSROOT="$SDKROOT" \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=$IOS_MIN_VERSION \
+            -DCMAKE_C_FLAGS="$CFLAGS" \
             -DENABLE_SHARED=OFF \
             -DENABLE_STATIC=ON \
             -DWITH_TURBOJPEG=OFF
