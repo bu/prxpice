@@ -388,6 +388,9 @@ build_spice_client() {
         tar xzf "$SOURCES_DIR/spice-common-${SPICE_COMMON_COMMIT}.tar.gz" \
             --strip-components=1 -C subprojects/spice-common
 
+        # spice-common code generator requires the 'six' Python module
+        python3 -m pip install six --break-system-packages 2>/dev/null || true
+
         cat > ios-cross.ini <<CROSSEOF
 [binaries]
 c = '$CC'
