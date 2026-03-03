@@ -6,7 +6,6 @@ import CSpiceBridge
 /// (thread-safe), while UI state changes dispatch to main queue.
 final class GLibRunLoopIntegration {
     private var thread: Thread?
-    private weak var session: SpiceBridgeSession?
     private var isRunning = false
 
     /// Starts the GLib main loop on a dedicated background thread.

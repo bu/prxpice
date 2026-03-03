@@ -1,4 +1,5 @@
 import Foundation
+import CSpiceBridge
 
 /// Routes Swift-level input events to the SPICE session.
 /// Translates touch gestures and keyboard events into SPICE protocol messages.

@@ -179,7 +179,7 @@ final class SpiceSessionManager: ObservableObject {
         }
         reconnectAttempts += 1
         let delay = min(pow(2.0, Double(reconnectAttempts)), 30.0) // Exponential backoff, max 30s
-        Log.spice.info("Reconnecting in \(delay)s (attempt \(reconnectAttempts)/\(maxReconnectAttempts))")
+        Log.spice.info("Reconnecting in \(delay)s (attempt \(self.reconnectAttempts)/\(self.maxReconnectAttempts))")
 
         reconnectTimer?.invalidate()
         reconnectTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
@@ -208,11 +208,11 @@ final class SpiceSessionManager: ObservableObject {
         wasConnectedBeforeBackground = (connectionState == .connected)
         // Keep connection alive briefly for fast app switching
         // iOS gives ~30s of background time
-        Log.spice.info("App backgrounded, connection state: \(String(describing: connectionState))")
+        Log.spice.info("App backgrounded, connection state: \(String(describing: self.connectionState))")
     }
 
     @objc private func appWillEnterForeground() {
-        Log.spice.info("App foregrounded, was connected: \(wasConnectedBeforeBackground)")
+        Log.spice.info("App foregrounded, was connected: \(self.wasConnectedBeforeBackground)")
         if wasConnectedBeforeBackground && connectionState != .connected {
             attemptReconnect()
         }

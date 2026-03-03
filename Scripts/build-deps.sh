@@ -517,6 +517,8 @@ PYEOF
  * (e.g. iOS) where GStreamer is not available. Video stream decoding is
  * simply disabled; all other SPICE channels (display, input, cursor) work. */
 #include "config.h"
+#include "spice-client.h"
+#include "spice-common.h"
 #include "channel-display-priv.h"
 
 gboolean gstvideo_has_codec(int codec_type)
@@ -544,16 +546,76 @@ CEOF
         echo "spice-gstaudio.c: wrapped in HAVE_GSTREAMER guard"
 
         # Patch 6b: guard GStreamer audio header and call in spice-audio.c.
-        # spice-gstaudio.c is now a no-op TU without GStreamer, so
-        # spice_gst_audio_new() is never defined — guard the call site too.
-        # Use perl (always present on macOS) instead of a Python heredoc.
-        perl -i '' \
-            -pe 's|#include "spice-gstaudio\.h"|#ifdef HAVE_GSTREAMER\n#include "spice-gstaudio.h"\n#endif|' \
-            src/spice-audio.c
-        perl -i '' -0pe \
-            's|(\s*)(return spice_gst_audio_new\([^)]+\);)|\1#ifdef HAVE_GSTREAMER\n\1\2\n\1#else\n\1return NULL;\n\1#endif|g' \
-            src/spice-audio.c
-        echo "spice-audio.c: GStreamer audio guarded"
+        # spice-gstaudio.c is a no-op TU without GStreamer, so spice_gstaudio_new()
+        # is never defined — guard the include and the call block in spice_audio_new_priv.
+        python3 - << 'PYEOF'
+with open('src/spice-audio.c') as f:
+    content = f.read()
+
+# 6b-i: guard the GStreamer audio header include
+content = content.replace(
+    '#include "spice-gstaudio.h"',
+    '#ifdef HAVE_GSTREAMER\n#include "spice-gstaudio.h"\n#endif'
+)
+
+# 6b-ii: guard the spice_gstaudio_new() call block inside spice_audio_new_priv.
+# The block assigns self via spice_gstaudio_new and wires up GObject signals;
+# without GStreamer, spice_audio_new_priv() should simply return NULL (self stays NULL).
+old_block = (
+    '    self = SPICE_AUDIO(spice_gstaudio_new(session, context, name));\n'
+    '    if (self != NULL) {\n'
+    '        spice_g_signal_connect_object(session, "notify::enable-audio", G_CALLBACK(session_enable_audio), self, 0);\n'
+    '        spice_g_signal_connect_object(session, "channel-new", G_CALLBACK(channel_new), self, G_CONNECT_AFTER);\n'
+    '        update_audio_channels(self, session);\n'
+    '    }\n'
+)
+new_block = (
+    '#ifdef HAVE_GSTREAMER\n'
+    '    self = SPICE_AUDIO(spice_gstaudio_new(session, context, name));\n'
+    '    if (self != NULL) {\n'
+    '        spice_g_signal_connect_object(session, "notify::enable-audio", G_CALLBACK(session_enable_audio), self, 0);\n'
+    '        spice_g_signal_connect_object(session, "channel-new", G_CALLBACK(channel_new), self, G_CONNECT_AFTER);\n'
+    '        update_audio_channels(self, session);\n'
+    '    }\n'
+    '#endif\n'
+)
+assert old_block in content, "spice_gstaudio_new block not found in spice-audio.c"
+content = content.replace(old_block, new_block, 1)
+
+with open('src/spice-audio.c', 'w') as f:
+    f.write(content)
+print("spice-audio.c: GStreamer audio guarded")
+PYEOF
+
+        # Patch 7: channel-display-priv.h — add missing standard headers before jpeglib.h.
+        # jpeglib.h uses size_t, FILE, and bool but does not include stdio.h/stddef.h/stdbool.h
+        # itself; under the iOS cross-compile sysroot these types are not implicitly available.
+        python3 - << 'PYEOF'
+with open('src/channel-display-priv.h') as f:
+    content = f.read()
+content = content.replace(
+    '#include <jpeglib.h>',
+    '#include <stdio.h>\n#include <stddef.h>\n#include <stdbool.h>\n#include <jpeglib.h>'
+)
+with open('src/channel-display-priv.h', 'w') as f:
+    f.write(content)
+print("channel-display-priv.h: added stdio.h/stddef.h/stdbool.h before jpeglib.h")
+PYEOF
+
+        # Patch 8: channel-display-mjpeg.c — guard the hand_pipeline_to_widget() call.
+        # That function is declared only when HAVE_GSTREAMER is set; the mjpeg decoder
+        # calls it unconditionally which causes an undeclared-function error on iOS.
+        python3 - << 'PYEOF'
+with open('src/channel-display-mjpeg.c') as f:
+    content = f.read()
+old = '    hand_pipeline_to_widget(stream, NULL);\n'
+new = '#ifdef HAVE_GSTREAMER\n    hand_pipeline_to_widget(stream, NULL);\n#endif\n'
+assert old in content, "hand_pipeline_to_widget call not found in channel-display-mjpeg.c"
+content = content.replace(old, new, 1)
+with open('src/channel-display-mjpeg.c', 'w') as f:
+    f.write(content)
+print("channel-display-mjpeg.c: guarded hand_pipeline_to_widget call")
+PYEOF
 
         cat > ios-cross.ini <<CROSSEOF
 [binaries]
@@ -589,7 +651,8 @@ CROSSEOF
             -Dvapi=disabled \
             -Dgtk_doc=disabled \
             -Dintrospection=disabled \
-            -Dopus=enabled
+            -Dopus=enabled \
+            -Dspice-common:tests=false
 
         ninja -C _build -j$NJOBS
         ninja -C _build install

@@ -80,7 +80,7 @@ final class MetalRenderer {
         currentTextureIndex = 0
         needsRedraw = true
 
-        Log.rendering.info("Created surface: \(width)x\(height), \(textures.count) textures")
+        Log.rendering.info("Created surface: \(width)x\(height), \(self.textures.count) textures")
     }
 
     /// Destroys texture pool when the display surface is removed.
