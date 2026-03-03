@@ -530,6 +530,31 @@ VideoDecoder* create_gstreamer_decoder(int codec_type, display_stream *stream)
 }
 CEOF
 
+        # Patch 6: wrap spice-gstaudio.c in a HAVE_GSTREAMER guard.
+        # Pure bash: leave the file in meson's source list but make it an empty
+        # translation unit when GStreamer is absent.  config.h won't define
+        # HAVE_GSTREAMER when GStreamer was not found, so the preprocessor skips
+        # the entire body — clang sees only "#include config.h", no <gst/gst.h>.
+        {
+            printf '#include "config.h"\n#ifdef HAVE_GSTREAMER\n'
+            cat src/spice-gstaudio.c
+            printf '\n#endif /* HAVE_GSTREAMER */\n'
+        } > src/spice-gstaudio.c.new
+        mv src/spice-gstaudio.c.new src/spice-gstaudio.c
+        echo "spice-gstaudio.c: wrapped in HAVE_GSTREAMER guard"
+
+        # Patch 6b: guard GStreamer audio header and call in spice-audio.c.
+        # spice-gstaudio.c is now a no-op TU without GStreamer, so
+        # spice_gst_audio_new() is never defined — guard the call site too.
+        # Use perl (always present on macOS) instead of a Python heredoc.
+        perl -i '' \
+            -pe 's|#include "spice-gstaudio\.h"|#ifdef HAVE_GSTREAMER\n#include "spice-gstaudio.h"\n#endif|' \
+            src/spice-audio.c
+        perl -i '' -0pe \
+            's|(\s*)(return spice_gst_audio_new\([^)]+\);)|\1#ifdef HAVE_GSTREAMER\n\1\2\n\1#else\n\1return NULL;\n\1#endif|g' \
+            src/spice-audio.c
+        echo "spice-audio.c: GStreamer audio guarded"
+
         cat > ios-cross.ini <<CROSSEOF
 [binaries]
 c = '$CC'
