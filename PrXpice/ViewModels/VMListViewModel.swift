@@ -65,10 +65,32 @@ final class VMListViewModel: ObservableObject {
                 allVMs.append(contentsOf: qemuVMs)
             }
 
-            // Sort: running first, then by name
+            // Fetch VM configs in parallel to check for QXL/SPICE display
+            let runningQemu = allVMs.filter { $0.type == .qemu && $0.status == .running }
+            var spiceVMIDs = Set<String>()
+            await withTaskGroup(of: (String, Bool).self) { group in
+                for vm in runningQemu {
+                    group.addTask { [apiClient] in
+                        let hasSpice = (try? await apiClient.getVMConfig(node: vm.node, vmid: vm.vmid))?.hasSpiceDisplay ?? false
+                        return (vm.id, hasSpice)
+                    }
+                }
+                for await (vmID, hasSpice) in group {
+                    if hasSpice { spiceVMIDs.insert(vmID) }
+                }
+            }
+
+            // Apply SPICE display flag
+            allVMs = allVMs.map { vm in
+                var v = vm
+                v.hasSpiceDisplay = spiceVMIDs.contains(vm.id)
+                return v
+            }
+
+            // Sort: SPICE-capable running first, then by name
             vms = allVMs.sorted { a, b in
-                if a.status == .running && b.status != .running { return true }
-                if a.status != .running && b.status == .running { return false }
+                if a.supportsSpice && !b.supportsSpice { return true }
+                if !a.supportsSpice && b.supportsSpice { return false }
                 return a.name < b.name
             }
         } catch {

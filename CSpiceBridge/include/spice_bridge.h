@@ -55,6 +55,7 @@ typedef void (*SpiceBridgeDisplayInvalidateCallback)(void *context, int32_t surf
 typedef void (*SpiceBridgeDisplayDestroyCallback)(void *context, int32_t surface_id);
 typedef void (*SpiceBridgeCursorSetCallback)(void *context, int32_t width, int32_t height, int32_t hot_x, int32_t hot_y, const uint8_t *data);
 typedef void (*SpiceBridgeCursorMoveCallback)(void *context, int32_t x, int32_t y);
+typedef void (*SpiceBridgeDebugCallback)(void *context, const char *message);
 
 // Callbacks configuration struct
 typedef struct {
@@ -66,6 +67,7 @@ typedef struct {
     SpiceBridgeDisplayDestroyCallback on_display_destroy;
     SpiceBridgeCursorSetCallback on_cursor_set;
     SpiceBridgeCursorMoveCallback on_cursor_move;
+    SpiceBridgeDebugCallback on_debug;
 } SpiceBridgeCallbacks;
 
 // Session lifecycle
@@ -121,6 +123,11 @@ void spice_bridge_quit_loop(SpiceBridgeSession *session);
 bool spice_bridge_get_display_info(const SpiceBridgeSession *session,
                                     int32_t *out_width,
                                     int32_t *out_height);
+
+// Request the VM to change its display resolution (requires spice-vdagent in the VM)
+void spice_bridge_set_display_resolution(SpiceBridgeSession *session,
+                                          int32_t width,
+                                          int32_t height);
 
 #ifdef __cplusplus
 }

@@ -36,13 +36,20 @@ final class ProxmoxAPIClient {
     func listQemuVMs(node: String) async throws -> [VMInfo] {
         let url = ProxmoxEndpoints.qemuVMs(baseURL: baseURL, node: node)
         let response: PVEResponse<[VMInfo]> = try await get(url: url)
-        return response.data
+        return response.data.map { var vm = $0; vm.node = node; return vm }
     }
 
     /// Lists LXC containers on a specific node.
     func listLXCContainers(node: String) async throws -> [VMInfo] {
         let url = ProxmoxEndpoints.lxcContainers(baseURL: baseURL, node: node)
         let response: PVEResponse<[VMInfo]> = try await get(url: url)
+        return response.data.map { var vm = $0; vm.node = node; return vm }
+    }
+
+    /// Gets VM hardware config — used to check if SPICE display (QXL) is configured.
+    func getVMConfig(node: String, vmid: Int) async throws -> VMConfigData {
+        let url = ProxmoxEndpoints.vmConfig(baseURL: baseURL, node: node, vmid: vmid)
+        let response: PVEResponse<VMConfigData> = try await get(url: url)
         return response.data
     }
 
@@ -54,49 +61,45 @@ final class ProxmoxAPIClient {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        // spiceproxy requires a proxy parameter for the viewer
-        request.httpBody = "proxy=".data(using: .utf8)
+        // Pass the server host as proxy so PVE knows where to direct the client
+        let proxyHost = baseURL.host ?? ""
+        request.httpBody = "proxy=\(proxyHost)".data(using: .utf8)
 
         await authenticator.authorize(&request)
 
         let (data, response) = try await urlSession.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200
-        else {
-            throw ProxmoxError.spiceNotAvailable
-        }
-
-        // The response is JSON with a data field containing the virt-viewer config
-        let spiceResponse = try JSONDecoder().decode(PVEResponse<SpiceProxyData>.self, from: data)
-
-        // Build virt-viewer format string from the response fields
-        var configLines = ["[virt-viewer]", "type=spice"]
-        configLines.append("host=\(spiceResponse.data.host)")
-        configLines.append("port=\(spiceResponse.data.port ?? "")")
-        if let tlsPort = spiceResponse.data.tlsPort {
-            configLines.append("tls-port=\(tlsPort)")
-        }
-        configLines.append("password=\(spiceResponse.data.password)")
-        if let ca = spiceResponse.data.ca {
-            configLines.append("ca=\(ca)")
-        }
-        if let subject = spiceResponse.data.hostSubject {
-            configLines.append("host-subject=\(subject)")
-        }
-        if let proxy = spiceResponse.data.proxy, !proxy.isEmpty {
-            configLines.append("proxy=\(proxy)")
-        }
-        if let sc = spiceResponse.data.secureChannels {
-            configLines.append("secure-channels=\(sc)")
-        }
-
-        let configString = configLines.joined(separator: "\n")
-        guard let config = SpiceConfig.parse(from: configString) else {
+        guard let httpResponse = response as? HTTPURLResponse else {
             throw ProxmoxError.invalidResponse
         }
 
-        return config
+        guard httpResponse.statusCode == 200 else {
+            // Try to extract the server's error message
+            if let errorResponse = try? JSONDecoder().decode(PVEErrorResponse.self, from: data),
+               let message = errorResponse.errors?.values.first ?? errorResponse.message {
+                throw ProxmoxError.serverError(message)
+            }
+            throw ProxmoxError.requestFailed(statusCode: httpResponse.statusCode)
+        }
+
+        let spiceResponse = try JSONDecoder().decode(PVEResponse<SpiceProxyData>.self, from: data)
+        let d = spiceResponse.data
+
+        // port or tls-port must be present to connect
+        guard let port = d.port ?? d.tlsPort else {
+            throw ProxmoxError.invalidResponse
+        }
+
+        return SpiceConfig(
+            host: d.host,
+            port: port,
+            tlsPort: d.tlsPort,
+            password: d.password,
+            ca: d.ca,
+            hostSubject: d.hostSubject,
+            proxy: d.proxy,
+            secureChannels: d.secureChannels
+        )
     }
 
     // MARK: - Private
@@ -126,6 +129,11 @@ struct PVEResponse<T: Decodable>: Decodable {
     let data: T
 }
 
+struct PVEErrorResponse: Decodable {
+    let errors: [String: String]?
+    let message: String?
+}
+
 struct NodeInfo: Codable, Identifiable {
     let node: String
     let status: String
@@ -139,8 +147,8 @@ struct NodeInfo: Codable, Identifiable {
 
 struct SpiceProxyData: Codable {
     let host: String
-    let port: String?
-    let tlsPort: String?
+    let port: Int?
+    let tlsPort: Int?
     let password: String
     let ca: String?
     let hostSubject: String?
@@ -153,6 +161,17 @@ struct SpiceProxyData: Codable {
         case tlsPort = "tls-port"
         case hostSubject = "host-subject"
         case secureChannels = "secure-channels"
+    }
+}
+
+struct VMConfigData: Decodable {
+    let vga: String?
+
+    /// True if the VM has a QXL display (required for SPICE).
+    var hasSpiceDisplay: Bool {
+        guard let vga else { return false }
+        // vga can be "qxl", "qxl2", "qxl4", or with options like "qxl,memory=16384"
+        return vga.hasPrefix("qxl")
     }
 }
 

@@ -5,8 +5,8 @@ struct VMListView: View {
     let connectionStore: ConnectionStore
 
     @StateObject private var viewModel: VMListViewModel
-    @State private var selectedVM: VMInfo?
-    @State private var spiceConfig: SpiceConfig?
+    @State private var sessions: [VMSession] = []
+    @State private var showMultiVM = false
 
     init(connection: ServerConnection, connectionStore: ConnectionStore) {
         self.connection = connection
@@ -23,11 +23,11 @@ struct VMListView: View {
                 ProgressView("Connecting...")
             } else if let error = viewModel.error {
                 errorView(error)
-            } else if viewModel.vms.isEmpty {
+            } else if viewModel.vms.filter({ $0.supportsSpice }).isEmpty {
                 ContentUnavailableView(
-                    "No VMs Found",
+                    "No SPICE VMs Found",
                     systemImage: "desktopcomputer",
-                    description: Text("No QEMU virtual machines found on this server.")
+                    description: Text("No running QEMU VMs with SPICE support found on this server.")
                 )
             } else {
                 vmList
@@ -43,25 +43,31 @@ struct VMListView: View {
                 }
                 .disabled(viewModel.isLoading)
             }
+            if !sessions.isEmpty {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        showMultiVM = true
+                    } label: {
+                        Label("\(sessions.count)", systemImage: "desktopcomputer.fill")
+                    }
+                }
+            }
         }
         .task {
             await viewModel.authenticate()
         }
-        .fullScreenCover(item: $selectedVM) { vm in
-            if let config = spiceConfig {
-                VMDisplayView(vm: vm, spiceConfig: config)
-            }
+        .fullScreenCover(isPresented: $showMultiVM) {
+            MultiVMContainerView(sessions: $sessions)
         }
     }
 
     private var vmList: some View {
-        List(viewModel.vms) { vm in
+        List(viewModel.vms.filter { $0.supportsSpice }) { vm in
             Button {
                 connectToVM(vm)
             } label: {
                 VMRow(vm: vm)
             }
-            .disabled(!vm.supportsSpice)
         }
         .refreshable {
             await viewModel.loadVMs()
@@ -87,10 +93,17 @@ struct VMListView: View {
     }
 
     private func connectToVM(_ vm: VMInfo) {
+        // If a session for this VM is already open, just switch back to it
+        if sessions.contains(where: { $0.vm.vmid == vm.vmid && $0.vm.node == vm.node }) {
+            showMultiVM = true
+            return
+        }
         Task {
             do {
-                spiceConfig = try await viewModel.getSpiceConfig(for: vm)
-                selectedVM = vm
+                let config = try await viewModel.getSpiceConfig(for: vm)
+                let session = VMSession(vm: vm, spiceConfig: config)
+                sessions.append(session)
+                showMultiVM = true
             } catch {
                 viewModel.error = error.localizedDescription
             }
@@ -111,7 +124,7 @@ private struct VMRow: View {
                 Text(vm.name)
                     .font(.headline)
                 HStack(spacing: 8) {
-                    Text("VMID: \(vm.vmid)")
+                    Text("VMID: \(String(vm.vmid))")
                     if let cpus = vm.cpus {
                         Text("\(cpus) CPU")
                     }

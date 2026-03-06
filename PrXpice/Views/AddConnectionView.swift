@@ -46,8 +46,11 @@ struct AddConnectionView: View {
                         .keyboardType(.URL)
                         .autocapitalization(.none)
                         .autocorrectionDisabled()
-                    TextField("Port", text: $port)
-                        .keyboardType(.numberPad)
+                    TextField("Port", text: Binding(
+                        get: { port },
+                        set: { port = $0.filter(\.isNumber) }
+                    ))
+                    .keyboardType(.numberPad)
                 }
 
                 Section("Authentication") {

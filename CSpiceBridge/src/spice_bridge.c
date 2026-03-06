@@ -12,15 +12,60 @@
 #include "spice_bridge.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <unistd.h>
 #include <pthread.h>
+#include <os/log.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <netdb.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+
+#define BLOG(fmt, ...) do { \
+    os_log(OS_LOG_DEFAULT, "[SpiceBridge] " fmt, ##__VA_ARGS__); \
+} while(0)
 
 #ifdef HAVE_SPICE
 #include <spice-client.h>
-#include <spice-session.h>
-#include <spice-channel.h>
-#include <spice-display-channel.h>
-#include <spice-inputs-channel.h>
 #endif
+
+// ---------------------------------------------------------------------------
+// Singleton shared GLib main loop — one thread runs g_main_loop_run on the
+// global default context for the app lifetime.  All SpiceSessions attach
+// their GIO sources to that context, so every session's callbacks are
+// dispatched by this single thread (no multi-thread context ownership fights).
+// ---------------------------------------------------------------------------
+static GMainLoop      *s_shared_loop = NULL;
+static pthread_once_t  s_loop_once   = PTHREAD_ONCE_INIT;
+
+static void *shared_loop_thread(void *arg) {
+    (void)arg;
+    pthread_setname_np("com.prxpice.glib-mainloop");
+    BLOG("shared GLib loop: started");
+    g_main_loop_run(s_shared_loop);
+    BLOG("shared GLib loop: exited");
+    return NULL;
+}
+
+static void init_shared_loop(void) {
+    s_shared_loop = g_main_loop_new(NULL, FALSE); // global default context
+    pthread_t t;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    pthread_create(&t, &attr, shared_loop_thread, NULL);
+    pthread_attr_destroy(&attr);
+}
+
+static void ensure_shared_loop(void) {
+    pthread_once(&s_loop_once, init_shared_loop);
+}
+// ---------------------------------------------------------------------------
 
 struct SpiceBridgeSession {
     SpiceBridgeCallbacks callbacks;
@@ -28,19 +73,38 @@ struct SpiceBridgeSession {
 
 #ifdef HAVE_SPICE
     SpiceSession *spice_session;
+    SpiceMainChannel *main_channel;
     SpiceInputsChannel *inputs_channel;
     SpiceDisplayChannel *display_channel;
-    GMainLoop *main_loop;
-    GMainContext *main_context;
-#else
-    void *main_loop;
-    void *main_context;
+    // Disconnect synchronization: quit_loop waits until on_session_disconnected fires
+    GMutex   disconnect_mutex;
+    GCond    disconnect_cond;
+    gboolean disconnect_notified;
 #endif
 
     int32_t display_width;
     int32_t display_height;
     pthread_mutex_t lock;
+
+    // TLS relay — bypasses GIO's missing TLS backend (GDummyTlsBackend)
+    int relay_listen_fd;   // local loopback listener (-1 = unused)
+    int relay_running;     // 1 while relay accept loop is active
 };
+
+// Route a debug message to the Swift debug callback
+static void debug_notify(SpiceBridgeSession *session, const char *fmt, ...) {
+    if (!session || !session->callbacks.on_debug) return;
+    char buf[256];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    session->callbacks.on_debug(session->callbacks.context, buf);
+}
+#define DBLOG(session, fmt, ...) do { \
+    BLOG(fmt, ##__VA_ARGS__); \
+    debug_notify(session, fmt, ##__VA_ARGS__); \
+} while(0)
 
 // Helper to notify state changes
 static void notify_state_change(SpiceBridgeSession *session, SpiceBridgeState new_state) {
@@ -55,12 +119,50 @@ static void notify_state_change(SpiceBridgeSession *session, SpiceBridgeState ne
 
 #ifdef HAVE_SPICE
 
+// Forward declarations
+static void on_channel_event(SpiceChannel *channel, SpiceChannelEvent event, gpointer user_data);
+static void on_display_primary_create(SpiceDisplayChannel *channel, gint format, gint width, gint height, gint stride, gint shmid, gpointer imgdata, gpointer user_data);
+static void on_display_invalidate(SpiceDisplayChannel *channel, gint x, gint y, gint w, gint h, gpointer user_data);
+static void on_display_primary_destroy(SpiceDisplayChannel *channel, gpointer user_data);
+static void on_cursor_set(SpiceCursorChannel *channel, gint width, gint height, gint hot_x, gint hot_y, gpointer rgba, gpointer user_data);
+static void on_cursor_move(SpiceCursorChannel *channel, gint x, gint y, gpointer user_data);
+
 // GObject signal handlers
+
+static void on_channel_event(SpiceChannel *channel, SpiceChannelEvent event, gpointer user_data) {
+    SpiceBridgeSession *session = (SpiceBridgeSession *)user_data;
+    const char *evname = "UNKNOWN";
+    switch (event) {
+        case SPICE_CHANNEL_OPENED:           evname = "OPENED"; break;
+        case SPICE_CHANNEL_CLOSED:           evname = "CLOSED"; break;
+        case SPICE_CHANNEL_ERROR_CONNECT:    evname = "ERR_CONNECT"; break;
+        case SPICE_CHANNEL_ERROR_TLS:        evname = "ERR_TLS"; break;
+        case SPICE_CHANNEL_ERROR_LINK:       evname = "ERR_LINK"; break;
+        case SPICE_CHANNEL_ERROR_AUTH:       evname = "ERR_AUTH"; break;
+        case SPICE_CHANNEL_ERROR_IO:         evname = "ERR_IO"; break;
+        default: break;
+    }
+    DBLOG(session, "ch_event %s %s",
+          g_type_name(G_TYPE_FROM_INSTANCE(channel)), evname);
+}
 
 static void on_channel_new(SpiceSession *s, SpiceChannel *channel, gpointer user_data) {
     SpiceBridgeSession *session = (SpiceBridgeSession *)user_data;
 
-    if (SPICE_IS_DISPLAY_CHANNEL(channel)) {
+    gint channel_id = 0;
+    g_object_get(channel, "channel-id", &channel_id, NULL);
+    DBLOG(session, "ch_new type=%s id=%d",
+          g_type_name(G_TYPE_FROM_INSTANCE(channel)), channel_id);
+
+    // Always watch channel events so we see connect/error on every channel
+    g_signal_connect(channel, "channel-event", G_CALLBACK(on_channel_event), session);
+
+    if (SPICE_IS_MAIN_CHANNEL(channel)) {
+        DBLOG(session, "ch_new: main channel, connecting");
+        session->main_channel = SPICE_MAIN_CHANNEL(channel);
+        spice_channel_connect(channel);
+    } else if (SPICE_IS_DISPLAY_CHANNEL(channel)) {
+        DBLOG(session, "ch_new: display channel, connecting");
         session->display_channel = SPICE_DISPLAY_CHANNEL(channel);
 
         g_signal_connect(channel, "display-primary-create",
@@ -72,9 +174,11 @@ static void on_channel_new(SpiceSession *s, SpiceChannel *channel, gpointer user
 
         spice_channel_connect(channel);
     } else if (SPICE_IS_INPUTS_CHANNEL(channel)) {
+        BLOG("on_channel_new: is inputs channel, connecting");
         session->inputs_channel = SPICE_INPUTS_CHANNEL(channel);
         spice_channel_connect(channel);
     } else if (SPICE_IS_CURSOR_CHANNEL(channel)) {
+        BLOG("on_channel_new: is cursor channel, connecting");
         g_signal_connect(channel, "cursor-set",
                         G_CALLBACK(on_cursor_set), session);
         g_signal_connect(channel, "cursor-move",
@@ -89,17 +193,37 @@ static void on_channel_new(SpiceSession *s, SpiceChannel *channel, gpointer user
 static void on_channel_destroy(SpiceSession *s, SpiceChannel *channel, gpointer user_data) {
     SpiceBridgeSession *session = (SpiceBridgeSession *)user_data;
 
-    if (SPICE_IS_DISPLAY_CHANNEL(channel)) {
+    if (SPICE_IS_MAIN_CHANNEL(channel)) {
+        session->main_channel = NULL;
+    } else if (SPICE_IS_DISPLAY_CHANNEL(channel)) {
         session->display_channel = NULL;
     } else if (SPICE_IS_INPUTS_CHANNEL(channel)) {
         session->inputs_channel = NULL;
     }
 }
 
-static void on_session_disconnected(GObject *gobject, GParamSpec *pspec, gpointer user_data) {
+static void on_session_disconnected(SpiceSession *spice_session, gpointer user_data) {
     SpiceBridgeSession *session = (SpiceBridgeSession *)user_data;
-    // Check migration state - only notify disconnect if not migrating
+    DBLOG(session, "session: disconnected signal");
+    // Unblock spice_bridge_quit_loop() which waits for this signal
+    g_mutex_lock(&session->disconnect_mutex);
+    session->disconnect_notified = TRUE;
+    g_cond_signal(&session->disconnect_cond);
+    g_mutex_unlock(&session->disconnect_mutex);
     notify_state_change(session, SPICE_BRIDGE_STATE_DISCONNECTED);
+}
+
+static void spice_glib_log_handler(const gchar *log_domain,
+                                    GLogLevelFlags log_level,
+                                    const gchar *message,
+                                    gpointer user_data) {
+    SpiceBridgeSession *session = (SpiceBridgeSession *)user_data;
+    const char *level = (log_level & G_LOG_LEVEL_ERROR)    ? "ERR"  :
+                        (log_level & G_LOG_LEVEL_CRITICAL) ? "CRIT" :
+                        (log_level & G_LOG_LEVEL_WARNING)  ? "WARN" :
+                        (log_level & G_LOG_LEVEL_MESSAGE)  ? "MSG"  : "DBG";
+    DBLOG(session, "GLOG[%s/%s] %s",
+          log_domain ? log_domain : "glib", level, message ? message : "");
 }
 
 static void on_display_primary_create(SpiceDisplayChannel *channel,
@@ -108,12 +232,16 @@ static void on_display_primary_create(SpiceDisplayChannel *channel,
                                        gpointer user_data) {
     SpiceBridgeSession *session = (SpiceBridgeSession *)user_data;
 
+    DBLOG(session, "display_create fmt=%d %dx%d stride=%d data=%p",
+          format, width, height, stride, imgdata);
+
     pthread_mutex_lock(&session->lock);
     session->display_width = width;
     session->display_height = height;
     pthread_mutex_unlock(&session->lock);
 
     if (session->callbacks.on_display_create) {
+        BLOG("on_display_primary_create: calling Swift on_display_create callback");
         SpiceBridgeSurface surface = {
             .surface_id = 0,
             .width = width,
@@ -134,23 +262,20 @@ static void on_display_invalidate(SpiceDisplayChannel *channel,
     if (session->callbacks.on_display_invalidate) {
         SpiceBridgeRect rect = { .x = x, .y = y, .width = w, .height = h };
 
-        // Get current surface data pointer
-        gpointer imgdata = NULL;
-        gint width, height, stride;
-        g_object_get(channel,
-                     "width", &width,
-                     "height", &height,
-                     "stride", &stride,
-                     NULL);
+        // Get the current primary surface to obtain stride and data pointer
+        SpiceDisplayPrimary primary;
+        gint stride = 0;
+        const uint8_t *data = NULL;
+        if (spice_display_channel_get_primary(SPICE_CHANNEL(channel), 0, &primary)) {
+            stride = primary.stride;
+            data = (const uint8_t *)primary.data;
+        }
 
-        // Access the surface data from the display channel
-        // The data pointer from primary-create remains valid
-        // We pass NULL here - the Swift side caches the base pointer from on_display_create
         session->callbacks.on_display_invalidate(
             session->callbacks.context,
             0, // surface_id
             &rect,
-            NULL, // Swift uses cached pointer + stride arithmetic
+            data,
             stride
         );
     }
@@ -188,6 +313,201 @@ static void on_cursor_move(SpiceCursorChannel *channel,
 
 #endif /* HAVE_SPICE */
 
+// ---------------------------------------------------------------------------
+// TLS relay — makes spice-glib see a plain SPICE server while we handle
+// the proxy CONNECT + OpenSSL TLS handshake transparently.
+//
+// SPICE opens one TCP connection per channel (main, display, cursor, inputs).
+// The relay listener accepts each connection and spawns a per-channel worker
+// thread that does: proxy CONNECT → OpenSSL TLS → bidirectional relay.
+// ---------------------------------------------------------------------------
+
+typedef struct {
+    SpiceBridgeSession *session;
+    char real_host[256];
+    int  real_tls_port;
+    char proxy_host[64];
+    int  proxy_port;
+    int  has_proxy;
+    int  client_fd;  // already-accepted fd (set per worker)
+} TlsRelayArgs;
+
+// Resolve hostname → IPv4
+static int resolve_host(const char *host, struct in_addr *out) {
+    struct addrinfo hints = {0}, *res = NULL;
+    hints.ai_family   = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    if (getaddrinfo(host, NULL, &hints, &res) != 0 || !res) return -1;
+    *out = ((struct sockaddr_in *)res->ai_addr)->sin_addr;
+    freeaddrinfo(res);
+    return 0;
+}
+
+// Worker thread: handles one SPICE channel connection end-to-end
+static void *tls_relay_worker(void *arg) {
+    TlsRelayArgs *a = (TlsRelayArgs *)arg;
+    SpiceBridgeSession *session = a->session;
+    int client_fd = a->client_fd;
+    int server_fd = -1;
+    SSL_CTX *ctx  = NULL;
+    SSL *ssl      = NULL;
+
+    // 1. Connect to proxy or directly to server
+    {
+        const char *conn_host = a->has_proxy ? a->proxy_host : a->real_host;
+        int  conn_port        = a->has_proxy ? a->proxy_port : a->real_tls_port;
+
+        struct in_addr addr4;
+        if (resolve_host(conn_host, &addr4) < 0) {
+            DBLOG(session, "relay[%d]: resolve failed for %s", client_fd, conn_host);
+            goto worker_cleanup;
+        }
+        struct sockaddr_in sa = {0};
+        sa.sin_family = AF_INET;
+        sa.sin_port   = htons((uint16_t)conn_port);
+        sa.sin_addr   = addr4;
+
+        server_fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (server_fd < 0 || connect(server_fd, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
+            DBLOG(session, "relay[%d]: connect to %s:%d failed errno=%d",
+                  client_fd, conn_host, conn_port, errno);
+            goto worker_cleanup;
+        }
+    }
+
+    // 2. HTTP CONNECT tunnel (if using proxy)
+    if (a->has_proxy) {
+        char req[512];
+        snprintf(req, sizeof(req),
+            "CONNECT %s:%d HTTP/1.1\r\nHost: %s:%d\r\n\r\n",
+            a->real_host, a->real_tls_port,
+            a->real_host, a->real_tls_port);
+        send(server_fd, req, strlen(req), 0);
+
+        char resp[1024] = {0};
+        int total = 0;
+        while (total < (int)sizeof(resp) - 1) {
+            int r = (int)recv(server_fd, resp + total, sizeof(resp) - 1 - total, 0);
+            if (r <= 0) break;
+            total += r;
+            if (strstr(resp, "\r\n\r\n")) break;
+        }
+        if (!strstr(resp, "200")) {
+            DBLOG(session, "relay[%d]: proxy CONNECT failed: %.40s", client_fd, resp);
+            goto worker_cleanup;
+        }
+    }
+
+    // 3. TLS handshake
+    {
+        ctx = SSL_CTX_new(TLS_client_method());
+        if (!ctx) { DBLOG(session, "relay[%d]: SSL_CTX_new failed", client_fd); goto worker_cleanup; }
+        SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+
+        ssl = SSL_new(ctx);
+        if (!ssl) { DBLOG(session, "relay[%d]: SSL_new failed", client_fd); goto worker_cleanup; }
+        SSL_set_fd(ssl, server_fd);
+        SSL_set_tlsext_host_name(ssl, a->real_host);
+
+        if (SSL_connect(ssl) != 1) {
+            char errbuf[256];
+            ERR_error_string_n(ERR_get_error(), errbuf, sizeof(errbuf));
+            DBLOG(session, "relay[%d]: SSL_connect failed: %s", client_fd, errbuf);
+            goto worker_cleanup;
+        }
+        DBLOG(session, "relay[%d]: TLS OK cipher=%s", client_fd, SSL_get_cipher(ssl));
+    }
+
+    // 4. Bidirectional relay loop
+    {
+        int ssl_fd = SSL_get_fd(ssl);
+        uint8_t buf[16384];
+
+        while (session->relay_running) {
+            if (SSL_pending(ssl) > 0) {
+                int n = SSL_read(ssl, buf, sizeof(buf));
+                if (n <= 0) break;
+                for (int off = 0; off < n; ) {
+                    int w = (int)write(client_fd, buf + off, (size_t)(n - off));
+                    if (w <= 0) goto worker_done;
+                    off += w;
+                }
+                continue;
+            }
+
+            fd_set rfds;
+            FD_ZERO(&rfds);
+            FD_SET(client_fd, &rfds);
+            FD_SET(ssl_fd, &rfds);
+            int maxfd = (client_fd > ssl_fd ? client_fd : ssl_fd) + 1;
+            struct timeval tv = {5, 0};
+            int ns = select(maxfd, &rfds, NULL, NULL, &tv);
+            if (ns < 0) break;
+            if (ns == 0) continue;
+
+            if (FD_ISSET(client_fd, &rfds)) {
+                int n = (int)read(client_fd, buf, sizeof(buf));
+                if (n <= 0) break;
+                if (SSL_write(ssl, buf, n) <= 0) break;
+            }
+            if (FD_ISSET(ssl_fd, &rfds)) {
+                int n = SSL_read(ssl, buf, sizeof(buf));
+                if (n <= 0) break;
+                for (int off = 0; off < n; ) {
+                    int w = (int)write(client_fd, buf + off, (size_t)(n - off));
+                    if (w <= 0) goto worker_done;
+                    off += w;
+                }
+            }
+        }
+    }
+
+worker_done:
+worker_cleanup:
+    if (ssl)       { SSL_shutdown(ssl); SSL_free(ssl); }
+    if (ctx)       { SSL_CTX_free(ctx); }
+    if (server_fd >= 0) close(server_fd);
+    if (client_fd >= 0) close(client_fd);
+    free(a);
+    return NULL;
+}
+
+// Accept loop thread: accepts one connection per SPICE channel, spawns worker
+static void *tls_relay_thread(void *arg) {
+    TlsRelayArgs *tmpl = (TlsRelayArgs *)arg; // read-only template
+    SpiceBridgeSession *session = tmpl->session;
+
+    DBLOG(session, "relay: accept loop started");
+    while (session->relay_running) {
+        struct sockaddr_in addr;
+        socklen_t addrlen = sizeof(addr);
+        int cfd = accept(session->relay_listen_fd, (struct sockaddr *)&addr, &addrlen);
+        if (cfd < 0) {
+            if (errno == EINTR) continue;
+            break; // listener closed by disconnect
+        }
+
+        // Allocate per-worker args (copy of template + client fd)
+        TlsRelayArgs *wa = malloc(sizeof(TlsRelayArgs));
+        if (!wa) { close(cfd); continue; }
+        *wa = *tmpl;
+        wa->client_fd = cfd;
+
+        pthread_t wt;
+        if (pthread_create(&wt, NULL, tls_relay_worker, wa) != 0) {
+            close(cfd);
+            free(wa);
+        } else {
+            pthread_detach(wt);
+        }
+    }
+
+    DBLOG(session, "relay: accept loop exited");
+    free(tmpl);
+    return NULL;
+}
+
+// ---------------------------------------------------------------------------
 // Public API implementation
 
 SpiceBridgeSession *spice_bridge_session_new(const SpiceBridgeCallbacks *callbacks) {
@@ -199,23 +519,40 @@ SpiceBridgeSession *spice_bridge_session_new(const SpiceBridgeCallbacks *callbac
     }
     session->state = SPICE_BRIDGE_STATE_DISCONNECTED;
     pthread_mutex_init(&session->lock, NULL);
+    session->relay_listen_fd = -1;
+    session->relay_running   = 0;
 
 #ifdef HAVE_SPICE
-    session->main_context = g_main_context_new();
-    session->main_loop = g_main_loop_new(session->main_context, FALSE);
+    BLOG("spice_bridge_session_new: HAVE_SPICE is active, creating session");
 
-    // Push our context as the thread-default for session creation
-    g_main_context_push_thread_default(session->main_context);
+    // Disconnect synchronization — quit_loop waits until on_session_disconnected fires
+    g_mutex_init(&session->disconnect_mutex);
+    g_cond_init(&session->disconnect_cond);
+    session->disconnect_notified = FALSE;
 
+    // All sessions share the global default GLib context (NULL).
+    // ensure_shared_loop() starts a single dedicated thread that runs
+    // g_main_loop_run on that context — called later from spice_bridge_run_loop.
     session->spice_session = spice_session_new();
     g_signal_connect(session->spice_session, "channel-new",
                      G_CALLBACK(on_channel_new), session);
     g_signal_connect(session->spice_session, "channel-destroy",
                      G_CALLBACK(on_channel_destroy), session);
-    g_signal_connect(session->spice_session, "notify::migration-state",
+    g_signal_connect(session->spice_session, "disconnected",
                      G_CALLBACK(on_session_disconnected), session);
 
-    g_main_context_pop_thread_default(session->main_context);
+    // Capture internal spice-glib warnings/errors via the GLib log system
+    g_log_set_handler("GSpice",   G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL, spice_glib_log_handler, session);
+    g_log_set_handler("Spice",    G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL, spice_glib_log_handler, session);
+    g_log_set_handler("GLib",     G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL, spice_glib_log_handler, session);
+    g_log_set_handler("GLib-GIO", G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL, spice_glib_log_handler, session);
+    g_log_set_handler(NULL,       G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL, spice_glib_log_handler, session);
+
+    // Check if GIO has a working TLS backend — required for SPICE TLS
+    GTlsBackend *tls_be = g_tls_backend_get_default();
+    gboolean tls_ok = tls_be ? g_tls_backend_supports_tls(tls_be) : FALSE;
+    DBLOG(session, "GIO TLS: backend=%s supports=%d",
+          tls_be ? g_type_name(G_TYPE_FROM_INSTANCE(tls_be)) : "NONE", (int)tls_ok);
 #endif
 
     return session;
@@ -231,12 +568,8 @@ void spice_bridge_session_free(SpiceBridgeSession *session) {
     if (session->spice_session) {
         g_object_unref(session->spice_session);
     }
-    if (session->main_loop) {
-        g_main_loop_unref(session->main_loop);
-    }
-    if (session->main_context) {
-        g_main_context_unref(session->main_context);
-    }
+    g_mutex_clear(&session->disconnect_mutex);
+    g_cond_clear(&session->disconnect_cond);
 #endif
 
     pthread_mutex_destroy(&session->lock);
@@ -253,37 +586,131 @@ bool spice_bridge_connect(SpiceBridgeSession *session,
                           const char *proxy) {
     if (!session || !host) return false;
 
+    DBLOG(session, "connect host=%s port=%d tls=%d", host, port, tls_port);
+
     notify_state_change(session, SPICE_BRIDGE_STATE_CONNECTING);
 
 #ifdef HAVE_SPICE
-    g_main_context_push_thread_default(session->main_context);
-
-    g_object_set(session->spice_session,
-                 "host", host,
-                 "port", g_strdup_printf("%d", port),
-                 NULL);
-
     if (tls_port > 0) {
+        // ----------------------------------------------------------------
+        // TLS relay path: GIO has no TLS backend (GDummyTlsBackend).
+        // We create a local loopback listener, start a relay thread that
+        // does proxy CONNECT + OpenSSL TLS, and tell spice-glib to connect
+        // to 127.0.0.1:relay_port over plain TCP.
+        // ----------------------------------------------------------------
+
+        // Build relay args — parse proxy URL if present
+        TlsRelayArgs *ra = calloc(1, sizeof(TlsRelayArgs));
+        if (!ra) {
+            notify_state_change(session, SPICE_BRIDGE_STATE_ERROR);
+            return false;
+        }
+        ra->session = session;
+        strncpy(ra->real_host, host, sizeof(ra->real_host) - 1);
+        ra->real_tls_port = tls_port;
+        ra->has_proxy = (proxy != NULL);
+        if (proxy) {
+            const char *p = strstr(proxy, "://");
+            const char *h = p ? p + 3 : proxy;
+            const char *col = strrchr(h, ':');
+            if (col) {
+                ra->proxy_port = atoi(col + 1);
+                int hl = (int)(col - h);
+                if (hl >= (int)sizeof(ra->proxy_host)) hl = (int)sizeof(ra->proxy_host) - 1;
+                memcpy(ra->proxy_host, h, hl);
+            } else {
+                strncpy(ra->proxy_host, h, sizeof(ra->proxy_host) - 1);
+                ra->proxy_port = 3128;
+            }
+        }
+
+        // Create local listener on 127.0.0.1:0
+        int lfd = socket(AF_INET, SOCK_STREAM, 0);
+        if (lfd < 0) {
+            DBLOG(session, "relay: socket failed errno=%d", errno);
+            free(ra);
+            notify_state_change(session, SPICE_BRIDGE_STATE_ERROR);
+            return false;
+        }
+        int one = 1;
+        setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+        struct sockaddr_in la = {0};
+        la.sin_family = AF_INET;
+        la.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        la.sin_port = 0;
+        if (bind(lfd, (struct sockaddr *)&la, sizeof(la)) < 0 ||
+            listen(lfd, 16) < 0) {
+            DBLOG(session, "relay: bind/listen failed errno=%d", errno);
+            close(lfd);
+            free(ra);
+            notify_state_change(session, SPICE_BRIDGE_STATE_ERROR);
+            return false;
+        }
+        socklen_t llen = sizeof(la);
+        getsockname(lfd, (struct sockaddr *)&la, &llen);
+        int relay_port = ntohs(la.sin_port);
+        session->relay_listen_fd = lfd;
+        DBLOG(session, "relay: listener on 127.0.0.1:%d -> %s:%d (proxy=%s)",
+              relay_port, host, tls_port, proxy ? proxy : "none");
+
+        // Launch relay thread (detached)
+        session->relay_running = 1;
+        pthread_t rt;
+        pthread_create(&rt, NULL, tls_relay_thread, ra);
+        pthread_detach(rt);
+
+        // Point spice-glib at our local relay (plain TCP, no proxy, no TLS)
         g_object_set(session->spice_session,
-                     "tls-port", g_strdup_printf("%d", tls_port),
+                     "host", "127.0.0.1",
+                     "port", g_strdup_printf("%d", relay_port),
                      NULL);
-    }
-    if (password) {
-        g_object_set(session->spice_session, "password", password, NULL);
-    }
-    if (ca_cert) {
-        g_object_set(session->spice_session, "ca", ca_cert, NULL);
-    }
-    if (host_subject) {
-        g_object_set(session->spice_session, "cert-subject", host_subject, NULL);
-    }
-    if (proxy) {
-        g_object_set(session->spice_session, "proxy", proxy, NULL);
+        // Do NOT set tls-port or proxy — relay handles them
+        if (password) {
+            g_object_set(session->spice_session, "password", password, NULL);
+            DBLOG(session, "pw prefix=%.6s len=%d", password, (int)strlen(password));
+        }
+    } else {
+        // ----------------------------------------------------------------
+        // Plain (non-TLS) path — use spice-glib proxy/TLS handling as-is
+        // ----------------------------------------------------------------
+        g_object_set(session->spice_session,
+                     "host", host,
+                     "port", g_strdup_printf("%d", port),
+                     NULL);
+        if (password) {
+            g_object_set(session->spice_session, "password", password, NULL);
+            DBLOG(session, "pw prefix=%.6s len=%d", password, (int)strlen(password));
+        }
+        if (ca_cert) {
+            char ca_tmp[256] = {0};
+            const char *tmpdir = g_get_tmp_dir();
+            size_t tlen = strlen(tmpdir);
+            if (tlen > 0 && tmpdir[tlen - 1] == '/')
+                snprintf(ca_tmp, sizeof(ca_tmp), "%sspice_ca_XXXXXX.pem", tmpdir);
+            else
+                snprintf(ca_tmp, sizeof(ca_tmp), "%s/spice_ca_XXXXXX.pem", tmpdir);
+            int fd = mkstemps(ca_tmp, 4);
+            if (fd >= 0) {
+                write(fd, ca_cert, strlen(ca_cert));
+                close(fd);
+                DBLOG(session, "ca-file=%s", ca_tmp);
+                g_object_set(session->spice_session, "ca-file", ca_tmp, NULL);
+            } else {
+                DBLOG(session, "ca-file: failed to create temp file");
+            }
+        }
+        if (host_subject) {
+            g_object_set(session->spice_session, "cert-subject", host_subject, NULL);
+        }
+        if (proxy) {
+            g_object_set(session->spice_session, "proxy", proxy, NULL);
+        }
+        g_object_set(session->spice_session, "verify", (guint)0, NULL);
+        DBLOG(session, "verify=0 (TLS cert check disabled)");
     }
 
     gboolean success = spice_session_connect(session->spice_session);
-
-    g_main_context_pop_thread_default(session->main_context);
+    DBLOG(session, "spice_session_connect=%d", success);
 
     if (success) {
         notify_state_change(session, SPICE_BRIDGE_STATE_CONNECTED);
@@ -300,6 +727,14 @@ bool spice_bridge_connect(SpiceBridgeSession *session,
 
 void spice_bridge_disconnect(SpiceBridgeSession *session) {
     if (!session) return;
+
+    // Stop relay accept loop by closing the listener fd
+    session->relay_running = 0;
+    if (session->relay_listen_fd >= 0) {
+        close(session->relay_listen_fd);
+        session->relay_listen_fd = -1;
+    }
+    // Per-channel worker threads are detached and will exit when their fds close
 
 #ifdef HAVE_SPICE
     if (session->spice_session) {
@@ -373,23 +808,53 @@ void spice_bridge_mouse_button_release(SpiceBridgeSession *session,
 #endif
 }
 
+static gboolean glib_heartbeat(gpointer user_data) {
+    SpiceBridgeSession *session = (SpiceBridgeSession *)user_data;
+    DBLOG(session, "glib_loop alive");
+    return G_SOURCE_CONTINUE; // keep firing every 5s
+}
+
 void spice_bridge_run_loop(SpiceBridgeSession *session) {
     if (!session) return;
-
+    DBLOG(session, "run_loop: ensuring shared GLib loop is running");
 #ifdef HAVE_SPICE
-    g_main_context_push_thread_default(session->main_context);
-    g_main_loop_run(session->main_loop);
-    g_main_context_pop_thread_default(session->main_context);
+    // Start the singleton shared GLib loop thread if not already running.
+    // Returns immediately — the shared loop runs for the app lifetime.
+    ensure_shared_loop();
+    g_timeout_add(5000, glib_heartbeat, session);
 #endif
 }
 
 void spice_bridge_quit_loop(SpiceBridgeSession *session) {
     if (!session) return;
-
 #ifdef HAVE_SPICE
-    if (session->main_loop && g_main_loop_is_running(session->main_loop)) {
-        g_main_loop_quit(session->main_loop);
+    // Wait (up to 5 s) for on_session_disconnected to fire before the caller
+    // proceeds to free the session.  Prevents use-after-free in GLib callbacks.
+    g_mutex_lock(&session->disconnect_mutex);
+    if (!session->disconnect_notified) {
+        gint64 deadline = g_get_monotonic_time() + 5 * G_TIME_SPAN_SECOND;
+        g_cond_wait_until(&session->disconnect_cond, &session->disconnect_mutex, deadline);
     }
+    g_mutex_unlock(&session->disconnect_mutex);
+    // The shared GLib loop is not stopped — it serves all sessions for the app lifetime.
+#endif
+}
+
+void spice_bridge_set_display_resolution(SpiceBridgeSession *session,
+                                          int32_t width,
+                                          int32_t height) {
+#ifdef HAVE_SPICE
+    if (!session || !session->main_channel) {
+        BLOG("set_display_resolution: no main channel (session=%p)", (void*)session);
+        return;
+    }
+    gboolean agent_connected = FALSE;
+    g_object_get(session->main_channel, "agent-connected", &agent_connected, NULL);
+    DBLOG(session, "set_display_resolution: %dx%d agent=%d", width, height, agent_connected);
+    // Update display 0 at position (0,0) with the requested size, enabled
+    spice_main_channel_update_display(session->main_channel, 0, 0, 0, width, height, TRUE);
+    gboolean ok = spice_main_channel_send_monitor_config(session->main_channel);
+    DBLOG(session, "set_display_resolution: send_monitor_config=%d", ok);
 #endif
 }
 

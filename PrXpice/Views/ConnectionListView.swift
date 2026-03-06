@@ -98,7 +98,7 @@ private struct ConnectionRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(connection.name.isEmpty ? connection.hostname : connection.name)
                     .font(.headline)
-                Text("\(connection.hostname):\(connection.port)")
+                Text("\(connection.hostname):\(String(connection.port))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

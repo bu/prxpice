@@ -12,20 +12,14 @@ final class MetalRenderer {
     private let commandQueue: MTLCommandQueue
     private let pipelineState: MTLRenderPipelineState
 
-    // Triple-buffered textures to avoid GPU/CPU contention
-    private var textures: [MTLTexture] = []
-    private var currentTextureIndex = 0
-    private let textureCount = 3
+    // Single shared-storage texture — CPU writes dirty rects directly, GPU reads each frame
+    private var texture: MTLTexture?
 
     // Display dimensions
     private(set) var displayWidth: Int = 0
     private(set) var displayHeight: Int = 0
 
-    // Dirty tracking - coalesce multiple invalidations into one region
-    private var dirtyRegion: MTLRegion?
-    private let dirtyLock = NSLock()
-
-    // Flag indicating texture has new data
+    // Flag: new pixel data since last draw
     private var needsRedraw = false
 
     init?(device: MTLDevice) {
@@ -72,20 +66,17 @@ final class MetalRenderer {
             mipmapped: false
         )
         descriptor.usage = [.shaderRead]
-        descriptor.storageMode = .shared // CPU-writable, GPU-readable
+        descriptor.storageMode = .shared // CPU-writable, GPU-readable — unified memory
 
-        textures = (0..<textureCount).compactMap { _ in
-            device.makeTexture(descriptor: descriptor)
-        }
-        currentTextureIndex = 0
+        texture = device.makeTexture(descriptor: descriptor)
         needsRedraw = true
 
-        Log.rendering.info("Created surface: \(width)x\(height), \(self.textures.count) textures")
+        Log.rendering.info("Created surface: \(width)x\(height)")
     }
 
-    /// Destroys texture pool when the display surface is removed.
+    /// Destroys texture when the display surface is removed.
     func destroySurface() {
-        textures.removeAll()
+        texture = nil
         displayWidth = 0
         displayHeight = 0
         needsRedraw = false
@@ -101,9 +92,7 @@ final class MetalRenderer {
     func updateTexture(rect: (x: Int, y: Int, width: Int, height: Int),
                        basePointer: UnsafeRawPointer,
                        stride: Int) {
-        guard !textures.isEmpty else { return }
-
-        let texture = textures[currentTextureIndex]
+        guard let texture = texture else { return }
 
         let region = MTLRegion(
             origin: MTLOrigin(x: rect.x, y: rect.y, z: 0),
@@ -128,9 +117,8 @@ final class MetalRenderer {
     /// Uploads the entire framebuffer to the current texture.
     /// Used for initial surface creation.
     func uploadFullFrame(data: UnsafeRawPointer, stride: Int) {
-        guard !textures.isEmpty else { return }
+        guard let texture = texture else { return }
 
-        let texture = textures[currentTextureIndex]
         let region = MTLRegion(
             origin: MTLOrigin(x: 0, y: 0, z: 0),
             size: MTLSize(width: displayWidth, height: displayHeight, depth: 1)
@@ -152,16 +140,21 @@ final class MetalRenderer {
     /// - Returns: `true` if a frame was rendered, `false` if no update was needed.
     @discardableResult
     func draw(in drawable: CAMetalDrawable, renderPassDescriptor: MTLRenderPassDescriptor) -> Bool {
-        guard !textures.isEmpty, needsRedraw else { return false }
+        // Always encode at minimum a clear pass so the debug color shows
+        guard let commandBuffer = commandQueue.makeCommandBuffer() else { return false }
 
-        let texture = textures[currentTextureIndex]
+        guard let texture = texture else {
+            // No surface yet — clear to black and present
+            guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor) else { return false }
+            encoder.endEncoding()
+            commandBuffer.present(drawable)
+            commandBuffer.commit()
+            return false
+        }
 
-        // Advance to next texture for the next update cycle
-        currentTextureIndex = (currentTextureIndex + 1) % textureCount
+        needsRedraw = false
 
-        guard let commandBuffer = commandQueue.makeCommandBuffer(),
-              let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor)
-        else {
+        guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor) else {
             return false
         }
 
@@ -172,8 +165,6 @@ final class MetalRenderer {
 
         commandBuffer.present(drawable)
         commandBuffer.commit()
-
-        needsRedraw = false
         return true
     }
 }

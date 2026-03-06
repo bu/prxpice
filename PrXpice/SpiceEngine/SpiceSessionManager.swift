@@ -90,6 +90,12 @@ final class SpiceSessionManager: ObservableObject {
         callbacks.on_cursor_move = { ctx, x, y in
             // Cursor position updates
         }
+        callbacks.on_debug = { ctx, msg in
+            guard let ctx = ctx, let msg = msg else { return }
+            let str = String(cString: msg)
+            let manager = Unmanaged<SpiceSessionManager>.fromOpaque(ctx).takeUnretainedValue()
+            manager.displayHandler?.onLog?("C: \(str)")
+        }
 
         // Create session
         bridgeSession = spice_bridge_session_new(&callbacks)
@@ -116,7 +122,7 @@ final class SpiceSessionManager: ObservableObject {
 
         if !success {
             updateState(.error("Connection failed"))
-            cleanupSession()
+            disconnect()
         }
     }
 
@@ -127,11 +133,24 @@ final class SpiceSessionManager: ObservableObject {
         lastConfig = nil // Prevent auto-reconnect on user-initiated disconnect
 
         guard let session = bridgeSession else { return }
+        bridgeSession = nil // nil immediately so no further C calls use it
 
         updateState(.disconnecting)
+
+        // Disconnect SPICE (closes relay listener, signals GLib quit)
         spice_bridge_disconnect(session)
-        glibLoop.stop(session: session)
-        cleanupSession()
+
+        // Wait for GLib thread + free session on background — never block main thread
+        let glibLoopRef = glibLoop
+        let retained = retainedSelf
+        retainedSelf = nil
+
+        DispatchQueue.global(qos: .utility).async {
+            glibLoopRef.stopAndWait(session: session)
+            spice_bridge_session_free(session)
+            retained?.release()
+        }
+
         updateState(.disconnected)
     }
 
@@ -169,6 +188,12 @@ final class SpiceSessionManager: ObservableObject {
     func sendMouseButtonRelease(button: UInt32, buttonMask: UInt32) {
         guard let session = bridgeSession else { return }
         spice_bridge_mouse_button_release(session, button, buttonMask)
+    }
+
+    /// Requests the VM to change its display resolution (requires spice-vdagent).
+    func setDisplayResolution(width: Int, height: Int) {
+        guard let session = bridgeSession else { return }
+        spice_bridge_set_display_resolution(session, Int32(width), Int32(height))
     }
 
     /// Attempts to reconnect using the last config.
@@ -254,10 +279,8 @@ final class SpiceSessionManager: ObservableObject {
     }
 
     private func cleanupSession() {
-        if let session = bridgeSession {
-            spice_bridge_session_free(session)
-            bridgeSession = nil
-        }
+        // bridgeSession is already nil'd and freed via disconnect() background task
+        bridgeSession = nil
         releaseRetainedSelf()
     }
 

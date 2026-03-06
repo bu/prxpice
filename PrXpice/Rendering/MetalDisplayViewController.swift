@@ -12,18 +12,32 @@ protocol MetalDisplayViewDelegate: AnyObject {
     func displayView(_ vc: MetalDisplayViewController, touchMoved touch: UITouch, at point: CGPoint)
     func displayView(_ vc: MetalDisplayViewController, touchEnded touch: UITouch, at point: CGPoint)
     func displayView(_ vc: MetalDisplayViewController, touchCancelled touch: UITouch, at point: CGPoint)
+    func displayView(_ vc: MetalDisplayViewController, pointerMovedTo point: CGPoint)
+    func displayView(_ vc: MetalDisplayViewController, keyDown key: UIKey)
+    func displayView(_ vc: MetalDisplayViewController, keyUp key: UIKey)
     func displayViewSize(_ vc: MetalDisplayViewController) -> CGSize
+    func displayViewDidFourFingerSwipe(_ vc: MetalDisplayViewController, direction: UISwipeGestureRecognizer.Direction)
+}
+
+/// Weak proxy breaks the CADisplayLink → target strong-reference cycle,
+/// allowing MetalDisplayViewController to be deallocated normally.
+private final class DisplayLinkProxy: NSObject {
+    weak var target: MetalDisplayViewController?
+    @objc func tick() { target?.renderFrame() }
 }
 
 final class MetalDisplayViewController: UIViewController {
     private(set) var renderer: MetalRenderer?
     private var displayLink: CADisplayLink?
+    private var displayLinkProxy: DisplayLinkProxy?
     private var metalLayer: CAMetalLayer!
 
     weak var delegate: MetalDisplayViewDelegate?
+    var onRendererReady: ((MetalRenderer) -> Void)?
 
-    // Display scaling
-    private var displayScale: CGFloat = 1.0
+    // Display scaling — independent per-axis to match stretch-to-fill GPU rendering
+    private var displayScaleX: CGFloat = 1.0
+    private var displayScaleY: CGFloat = 1.0
     private var displayOffset: CGPoint = .zero
 
     // Zoom/pan state
@@ -31,6 +45,8 @@ final class MetalDisplayViewController: UIViewController {
     private(set) var panOffset: CGPoint = .zero
     private var minZoom: CGFloat = 0.5
     private var maxZoom: CGFloat = 4.0
+
+    override var canBecomeFirstResponder: Bool { true }
 
     override func loadView() {
         let metalView = UIView(frame: .zero)
@@ -50,11 +66,13 @@ final class MetalDisplayViewController: UIViewController {
         metalLayer.device = device
         metalLayer.pixelFormat = .bgra8Unorm
         metalLayer.framebufferOnly = true
+        metalLayer.isOpaque = true  // SPICE xRGB surfaces have alpha=0; treat layer as opaque
         metalLayer.contentsScale = UIScreen.main.scale
         metalLayer.presentsWithTransaction = false
         view.layer.addSublayer(metalLayer)
 
         renderer = MetalRenderer(device: device)
+        onRendererReady?(renderer!)
 
         setupGestureRecognizers()
         startDisplayLink()
@@ -71,21 +89,35 @@ final class MetalDisplayViewController: UIViewController {
         updateDisplayTransform()
     }
 
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
+    deinit {
         stopDisplayLink()
     }
+
+    // viewWillDisappear is intentionally NOT stopping the display link.
+    // In a multi-VM ZStack, SwiftUI calls viewWillDisappear on sibling VCs when
+    // opacity changes — stopping the link here would black out other VMs.
+    // The link runs until the VC is actually deallocated (deinit above).
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         startDisplayLink()
+        becomeFirstResponder()
+    }
+
+    /// Called by the representable when a session becomes the active (visible) one.
+    func makeActive() {
+        startDisplayLink()
+        becomeFirstResponder()
     }
 
     // MARK: - Display Link
 
     private func startDisplayLink() {
         guard displayLink == nil else { return }
-        let link = CADisplayLink(target: self, selector: #selector(displayLinkFired))
+        let proxy = DisplayLinkProxy()
+        proxy.target = self
+        displayLinkProxy = proxy
+        let link = CADisplayLink(target: proxy, selector: #selector(DisplayLinkProxy.tick))
         link.preferredFramesPerSecond = 60
         link.add(to: .main, forMode: .common)
         displayLink = link
@@ -94,9 +126,12 @@ final class MetalDisplayViewController: UIViewController {
     private func stopDisplayLink() {
         displayLink?.invalidate()
         displayLink = nil
+        displayLinkProxy = nil
     }
 
-    @objc private func displayLinkFired() {
+    fileprivate func renderFrame() {
+        updateDisplayTransform()
+
         guard let renderer = renderer,
               let drawable = metalLayer.nextDrawable()
         else { return }
@@ -113,34 +148,27 @@ final class MetalDisplayViewController: UIViewController {
     // MARK: - Coordinate Transform
 
     /// Updates the transform from view coordinates to VM display coordinates.
-    /// Maintains aspect ratio, centering the display in the view.
+    /// Uses independent per-axis scaling to match the stretch-to-fill GPU rendering.
     private func updateDisplayTransform() {
         guard let renderer = renderer,
               renderer.displayWidth > 0, renderer.displayHeight > 0
         else { return }
 
-        let vmSize = CGSize(width: renderer.displayWidth, height: renderer.displayHeight)
         let viewSize = view.bounds.size
 
-        let scaleX = viewSize.width / vmSize.width
-        let scaleY = viewSize.height / vmSize.height
-        displayScale = min(scaleX, scaleY) * zoomScale
-
-        let scaledWidth = vmSize.width * displayScale
-        let scaledHeight = vmSize.height * displayScale
-
-        displayOffset = CGPoint(
-            x: (viewSize.width - scaledWidth) / 2 + panOffset.x,
-            y: (viewSize.height - scaledHeight) / 2 + panOffset.y
-        )
+        // GPU renders the VM texture stretched to fill the full view (no letterboxing),
+        // so coordinate mapping must use the same per-axis scale, not min(scaleX, scaleY).
+        displayScaleX = (viewSize.width  / CGFloat(renderer.displayWidth))  * zoomScale
+        displayScaleY = (viewSize.height / CGFloat(renderer.displayHeight)) * zoomScale
+        displayOffset = panOffset
     }
 
     /// Converts a view-space point to VM display coordinates.
     func viewPointToDisplayPoint(_ viewPoint: CGPoint) -> CGPoint? {
-        guard displayScale > 0 else { return nil }
+        guard displayScaleX > 0, displayScaleY > 0 else { return nil }
 
-        let x = (viewPoint.x - displayOffset.x) / displayScale
-        let y = (viewPoint.y - displayOffset.y) / displayScale
+        let x = (viewPoint.x - displayOffset.x) / displayScaleX
+        let y = (viewPoint.y - displayOffset.y) / displayScaleY
 
         guard let renderer = renderer,
               x >= 0, x < CGFloat(renderer.displayWidth),
@@ -165,7 +193,27 @@ final class MetalDisplayViewController: UIViewController {
         doubleTap.numberOfTouchesRequired = 2
         view.addGestureRecognizer(doubleTap)
 
+        // Mouse pointer movement (no button held)
+        let hover = UIHoverGestureRecognizer(target: self, action: #selector(handleHover))
+        view.addGestureRecognizer(hover)
+
+        // 4-finger swipe to switch between VM sessions
+        for direction: UISwipeGestureRecognizer.Direction in [.left, .right] {
+            let swipe = UISwipeGestureRecognizer(target: self, action: #selector(handleFourFingerSwipe(_:)))
+            swipe.numberOfTouchesRequired = 4
+            swipe.direction = direction
+            view.addGestureRecognizer(swipe)
+        }
+
         view.isMultipleTouchEnabled = true
+    }
+
+    @objc private func handleHover(_ gesture: UIHoverGestureRecognizer) {
+        guard gesture.state == .began || gesture.state == .changed else { return }
+        let point = gesture.location(in: view)
+        if let displayPoint = viewPointToDisplayPoint(point) {
+            delegate?.displayView(self, pointerMovedTo: displayPoint)
+        }
     }
 
     @objc private func handlePinch(_ gesture: UIPinchGestureRecognizer) {
@@ -193,12 +241,85 @@ final class MetalDisplayViewController: UIViewController {
         }
     }
 
+    @objc private func handleFourFingerSwipe(_ gesture: UISwipeGestureRecognizer) {
+        delegate?.displayViewDidFourFingerSwipe(self, direction: gesture.direction)
+    }
+
     @objc private func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
         // Reset zoom and pan
         zoomScale = 1.0
         panOffset = .zero
         UIView.animate(withDuration: 0.25) {
             self.updateDisplayTransform()
+        }
+    }
+
+    // MARK: - Keyboard Events
+
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        // Detect Ctrl held via modifier flags OR by directly checking if either
+        // Ctrl key appears in the full active-press set (covers right-side Ctrl on
+        // keyboards that don't propagate it through modifierFlags correctly).
+        let ctrlHeld: Bool = {
+            if let all = event?.allPresses {
+                return all.contains {
+                    $0.key?.modifierFlags.contains(.control) == true ||
+                    $0.key?.keyCode == .keyboardLeftControl ||
+                    $0.key?.keyCode == .keyboardRightControl
+                }
+            }
+            return false
+        }()
+
+        for press in presses {
+            guard let key = press.key else {
+                super.pressesBegan([press], with: event)
+                continue
+            }
+            // Ctrl+Left/Right: switch VM sessions (intercepted, not forwarded to VM)
+            if ctrlHeld || key.modifierFlags.contains(.control) {
+                if key.keyCode == .keyboardLeftArrow {
+                    delegate?.displayViewDidFourFingerSwipe(self, direction: .right)
+                    continue
+                } else if key.keyCode == .keyboardRightArrow {
+                    delegate?.displayViewDidFourFingerSwipe(self, direction: .left)
+                    continue
+                }
+            }
+            delegate?.displayView(self, keyDown: key)
+        }
+    }
+
+    override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        for press in presses {
+            guard let key = press.key else {
+                super.pressesEnded([press], with: event)
+                continue
+            }
+            // Consume key-up for intercepted shortcuts
+            if key.modifierFlags.contains(.control),
+               key.keyCode == .keyboardLeftArrow || key.keyCode == .keyboardRightArrow {
+                continue
+            }
+            delegate?.displayView(self, keyUp: key)
+        }
+    }
+
+    override func pressesChanged(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        super.pressesChanged(presses, with: event)
+    }
+
+    override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        for press in presses {
+            guard let key = press.key else {
+                super.pressesCancelled([press], with: event)
+                continue
+            }
+            if key.modifierFlags.contains(.control),
+               key.keyCode == .keyboardLeftArrow || key.keyCode == .keyboardRightArrow {
+                continue
+            }
+            delegate?.displayView(self, keyUp: key)
         }
     }
 

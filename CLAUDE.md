@@ -7,14 +7,18 @@
 Scripts/build-deps.sh
 
 # Build app for device
-xcodebuild -project PrXpice.xcodeproj -scheme PrXpice -sdk iphoneos -configuration Release build
+TOOLCHAINS=com.apple.dt.toolchain.Metal.32023.850.10 xcodebuild -project PrXpice.xcodeproj -scheme PrXpice -sdk iphoneos -configuration Release build
 
 # Build for simulator (testing)
-xcodebuild -project PrXpice.xcodeproj -scheme PrXpice -sdk iphonesimulator -configuration Debug build
+TOOLCHAINS=com.apple.dt.toolchain.Metal.32023.850.10 xcodebuild -project PrXpice.xcodeproj -scheme PrXpice -sdk iphonesimulator -configuration Debug build
 
 # Run unit tests
-xcodebuild test -project PrXpice.xcodeproj -scheme PrXpice -destination 'platform=iOS Simulator,name=iPhone 15'
+TOOLCHAINS=com.apple.dt.toolchain.Metal.32023.850.10 xcodebuild test -project PrXpice.xcodeproj -scheme PrXpice -destination 'platform=iOS Simulator,name=iPhone 15'
 ```
+
+> **Note**: The `TOOLCHAINS` prefix is required because the Metal toolchain was installed to
+> `~/Library/Developer/Toolchains/` rather than inside `Xcode.app`. To avoid it permanently,
+> run `sudo cp -R ~/Library/Developer/Toolchains/Metal.xctoolchain /Applications/Xcode.app/Contents/Developer/Toolchains/`.
 
 ## Architecture
 

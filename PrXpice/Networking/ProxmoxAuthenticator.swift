@@ -113,6 +113,7 @@ enum ProxmoxError: LocalizedError {
     case requestFailed(statusCode: Int)
     case invalidResponse
     case spiceNotAvailable
+    case serverError(String)
     case notConnected
 
     var errorDescription: String? {
@@ -125,6 +126,8 @@ enum ProxmoxError: LocalizedError {
             return "Invalid response from server"
         case .spiceNotAvailable:
             return "SPICE is not available for this VM"
+        case .serverError(let message):
+            return message
         case .notConnected:
             return "Not connected to server"
         }

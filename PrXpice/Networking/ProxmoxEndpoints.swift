@@ -27,6 +27,11 @@ enum ProxmoxEndpoints {
         baseURL.appendingPathComponent("api2/json/nodes/\(node)/qemu/\(vmid)/status/current")
     }
 
+    /// GET /api2/json/nodes/{node}/qemu/{vmid}/config - VM hardware config (includes vga field)
+    static func vmConfig(baseURL: URL, node: String, vmid: Int) -> URL {
+        baseURL.appendingPathComponent("api2/json/nodes/\(node)/qemu/\(vmid)/config")
+    }
+
     /// POST /api2/json/nodes/{node}/qemu/{vmid}/spiceproxy - get SPICE connection config
     static func spiceProxy(baseURL: URL, node: String, vmid: Int) -> URL {
         baseURL.appendingPathComponent("api2/json/nodes/\(node)/qemu/\(vmid)/spiceproxy")

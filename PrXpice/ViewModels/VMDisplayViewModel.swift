@@ -1,11 +1,27 @@
 import Foundation
 import Combine
 
+struct VMResolution: Identifiable {
+    let width: Int
+    let height: Int
+    var id: String { "\(width)x\(height)" }
+    var label: String { "\(width) × \(height)" }
+
+    static let presets16x10: [VMResolution] = [
+        VMResolution(width: 1280, height: 800),
+        VMResolution(width: 1440, height: 900),
+        VMResolution(width: 1600, height: 1000),
+        VMResolution(width: 1920, height: 1200),
+        VMResolution(width: 2560, height: 1600),
+    ]
+}
+
 @MainActor
 final class VMDisplayViewModel: ObservableObject {
     @Published private(set) var connectionState: SpiceConnectionState = .disconnected
     @Published var error: String?
     @Published var showToolbar = true
+    @Published private(set) var debugLog: [String] = []
 
     let sessionManager = SpiceSessionManager()
     let displayHandler = SpiceDisplayHandler()
@@ -26,11 +42,17 @@ final class VMDisplayViewModel: ObservableObject {
         sessionManager.displayHandler = displayHandler
         sessionManager.inputHandler = inputHandler
 
+        // Wire debug log from display handler
+        displayHandler.onLog = { [weak self] msg in
+            DispatchQueue.main.async { self?.appendDebug(msg) }
+        }
+
         // Observe connection state
         sessionManager.$connectionState
             .receive(on: DispatchQueue.main)
             .sink { [weak self] state in
                 self?.connectionState = state
+                self?.appendDebug("State: \(state)")
                 if case .error(let msg) = state {
                     self?.error = msg
                 }
@@ -40,7 +62,16 @@ final class VMDisplayViewModel: ObservableObject {
 
     func connect(config: SpiceConfig) {
         error = nil
+        appendDebug("host:\(config.host) port:\(config.port)")
+        appendDebug("tls:\(config.tlsPort ?? -1) proxy:\(config.proxy ?? "nil")")
+        appendDebug("pw:\(config.password != nil ? "set" : "nil") ca:\(config.ca != nil ? "set" : "nil")")
         sessionManager.connect(config: config)
+    }
+
+    func appendDebug(_ msg: String) {
+        let ts = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
+        debugLog.append("[\(ts)] \(msg)")
+        if debugLog.count > 500 { debugLog.removeFirst(100) } // keep up to 500 entries
     }
 
     func disconnect() {
@@ -81,6 +112,10 @@ final class VMDisplayViewModel: ObservableObject {
             // For simplicity, just send press (the toolbar button tracks active state)
             inputHandler.keyPress(scancode: scancode)
         }
+    }
+
+    func setResolution(_ resolution: VMResolution) {
+        sessionManager.setDisplayResolution(width: resolution.width, height: resolution.height)
     }
 
     func releaseAllModifiers() {
