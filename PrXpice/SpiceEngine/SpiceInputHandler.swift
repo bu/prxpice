@@ -8,15 +8,35 @@ final class SpiceInputHandler {
 
     private var currentButtonMask: UInt32 = 0
 
+    /// Set to true for VMs that use server/relative mouse mode (e.g. macOS/Hackintosh without vdagent).
+    var useRelativeMouse: Bool = false
+    private var lastMousePosition: (x: Int, y: Int)? = nil
+
     // MARK: - Mouse
 
+    func resetMouseTracking() {
+        lastMousePosition = nil
+    }
+
     func mouseMove(x: Int, y: Int) {
-        sessionManager?.sendMousePosition(
-            x: Int32(x),
-            y: Int32(y),
-            displayId: 0,
-            buttonMask: currentButtonMask
-        )
+        guard let manager = sessionManager else { return }
+        if useRelativeMouse {
+            if let last = lastMousePosition {
+                let dx = Int32(x - last.x)
+                let dy = Int32(y - last.y)
+                if dx != 0 || dy != 0 {
+                    manager.sendMouseMotion(dx: dx, dy: dy, buttonMask: currentButtonMask)
+                }
+            }
+            lastMousePosition = (x, y)
+        } else {
+            manager.sendMousePosition(
+                x: Int32(x),
+                y: Int32(y),
+                displayId: 0,
+                buttonMask: currentButtonMask
+            )
+        }
     }
 
     func mouseButtonPress(button: MouseButton) {

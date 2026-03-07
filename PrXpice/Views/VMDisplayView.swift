@@ -16,7 +16,7 @@ struct VMDisplayView: View {
     @State private var debugPanelPosition: CGPoint = .zero
     @State private var controlButtonPosition: CGPoint = .zero
     @State private var showControlMenu = false
-    @State private var showResolutionPicker = false
+    @State private var useRelativeMouse = false
 
     init(session: VMSession,
          isActive: Bool = true,
@@ -67,14 +67,6 @@ struct VMDisplayView: View {
             }
         }
         .ignoresSafeArea(edges: .all)
-        .confirmationDialog("Display Resolution (16:10)", isPresented: $showResolutionPicker) {
-            ForEach(VMResolution.presets16x10) { res in
-                Button(res.label) {
-                    viewModel.setResolution(res)
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        }
     }
 
     private func floatingControlButton(in geo: GeometryProxy) -> some View {
@@ -139,8 +131,8 @@ struct VMDisplayView: View {
                 .frame(width: 44, height: 44)
         }
 
-        // 2 items above gear, 2 below — gear stays visually centered.
-        // Above: eye (debug), display (resolution)   Below: list (back to list), xmark (close)
+        // Items above gear: eye (debug), display (resolution), cursor (relative mouse)
+        // Items below gear: list (back to list), xmark (close)
         if isVertical {
             VStack(spacing: 0) {
                 if showControlMenu {
@@ -151,10 +143,13 @@ struct VMDisplayView: View {
                             .frame(width: 44, height: 44)
                     }
                     Rectangle().fill(Color.white.opacity(0.2)).frame(width: 28, height: 0.5)
-                    Button(action: { showResolutionPicker = true }) {
-                        Image(systemName: "display")
+                    Button(action: {
+                        useRelativeMouse.toggle()
+                        viewModel.inputHandler.useRelativeMouse = useRelativeMouse
+                    }) {
+                        Image(systemName: "cursorarrow.motionlines")
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.9))
+                            .foregroundStyle(useRelativeMouse ? Color.yellow : .white.opacity(0.9))
                             .frame(width: 44, height: 44)
                     }
                     Rectangle().fill(Color.white.opacity(0.2)).frame(width: 28, height: 0.5)
@@ -187,10 +182,13 @@ struct VMDisplayView: View {
                             .frame(width: 44, height: 44)
                     }
                     Rectangle().fill(Color.white.opacity(0.2)).frame(width: 0.5, height: 28)
-                    Button(action: { showResolutionPicker = true }) {
-                        Image(systemName: "display")
+                    Button(action: {
+                        useRelativeMouse.toggle()
+                        viewModel.inputHandler.useRelativeMouse = useRelativeMouse
+                    }) {
+                        Image(systemName: "cursorarrow.motionlines")
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.9))
+                            .foregroundStyle(useRelativeMouse ? Color.yellow : .white.opacity(0.9))
                             .frame(width: 44, height: 44)
                     }
                     Rectangle().fill(Color.white.opacity(0.2)).frame(width: 0.5, height: 28)

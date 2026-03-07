@@ -57,6 +57,15 @@ typedef void (*SpiceBridgeCursorSetCallback)(void *context, int32_t width, int32
 typedef void (*SpiceBridgeCursorMoveCallback)(void *context, int32_t x, int32_t y);
 typedef void (*SpiceBridgeDebugCallback)(void *context, const char *message);
 
+// Audio playback callbacks (VM → client, PCM S16 interleaved)
+typedef void (*SpiceBridgePlaybackStartCallback)(void *context, int32_t channels, int32_t freq);
+typedef void (*SpiceBridgePlaybackDataCallback)(void *context, const uint8_t *data, int32_t size);
+typedef void (*SpiceBridgePlaybackStopCallback)(void *context);
+
+// Audio record callbacks (client mic → VM)
+typedef void (*SpiceBridgeRecordStartCallback)(void *context, int32_t channels, int32_t freq);
+typedef void (*SpiceBridgeRecordStopCallback)(void *context);
+
 // Callbacks configuration struct
 typedef struct {
     void *context; // Opaque pointer to Swift object (Unmanaged<T>.toOpaque())
@@ -68,6 +77,12 @@ typedef struct {
     SpiceBridgeCursorSetCallback on_cursor_set;
     SpiceBridgeCursorMoveCallback on_cursor_move;
     SpiceBridgeDebugCallback on_debug;
+
+    SpiceBridgePlaybackStartCallback on_playback_start;
+    SpiceBridgePlaybackDataCallback  on_playback_data;
+    SpiceBridgePlaybackStopCallback  on_playback_stop;
+    SpiceBridgeRecordStartCallback   on_record_start;
+    SpiceBridgeRecordStopCallback    on_record_stop;
 } SpiceBridgeCallbacks;
 
 // Session lifecycle
@@ -119,15 +134,16 @@ void spice_bridge_run_loop(SpiceBridgeSession *session);
 // Signal the GLib main loop to quit (thread-safe)
 void spice_bridge_quit_loop(SpiceBridgeSession *session);
 
+// Send mic audio data to the VM (call from record tap; time_ms = ms since record-start)
+void spice_bridge_record_send_data(SpiceBridgeSession *session,
+                                    const uint8_t *data,
+                                    size_t size,
+                                    uint32_t time_ms);
+
 // Query display info
 bool spice_bridge_get_display_info(const SpiceBridgeSession *session,
                                     int32_t *out_width,
                                     int32_t *out_height);
-
-// Request the VM to change its display resolution (requires spice-vdagent in the VM)
-void spice_bridge_set_display_resolution(SpiceBridgeSession *session,
-                                          int32_t width,
-                                          int32_t height);
 
 #ifdef __cplusplus
 }

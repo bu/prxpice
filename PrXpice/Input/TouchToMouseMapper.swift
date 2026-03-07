@@ -35,6 +35,8 @@ final class TouchToMouseMapper {
         isDragging = false
         isLongPress = false
 
+        // Reset relative tracking so a new touch doesn't jump from old position
+        inputHandler?.resetMouseTracking()
         // Move cursor to touch position
         inputHandler?.mouseMove(x: Int(point.x), y: Int(point.y))
 

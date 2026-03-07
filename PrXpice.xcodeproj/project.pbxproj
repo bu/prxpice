@@ -25,6 +25,7 @@
 		A100000016 /* SpiceSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000016 /* SpiceSessionManager.swift */; };
 		A100000017 /* SpiceDisplayHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000017 /* SpiceDisplayHandler.swift */; };
 		A100000018 /* SpiceInputHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000018 /* SpiceInputHandler.swift */; };
+		A10000001A /* SpiceAudioHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000001A /* SpiceAudioHandler.swift */; };
 		A100000019 /* MetalRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000019 /* MetalRenderer.swift */; };
 		A100000020 /* MetalDisplayViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000020 /* MetalDisplayViewController.swift */; };
 		A100000021 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = B100000021 /* Shaders.metal */; };
@@ -64,6 +65,7 @@
 		B100000016 /* SpiceSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpiceSessionManager.swift; sourceTree = "<group>"; };
 		B100000017 /* SpiceDisplayHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpiceDisplayHandler.swift; sourceTree = "<group>"; };
 		B100000018 /* SpiceInputHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpiceInputHandler.swift; sourceTree = "<group>"; };
+		B10000001A /* SpiceAudioHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpiceAudioHandler.swift; sourceTree = "<group>"; };
 		B100000019 /* MetalRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalRenderer.swift; sourceTree = "<group>"; };
 		B100000020 /* MetalDisplayViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalDisplayViewController.swift; sourceTree = "<group>"; };
 		B100000021 /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
@@ -189,6 +191,7 @@
 				B100000016 /* SpiceSessionManager.swift */,
 				B100000017 /* SpiceDisplayHandler.swift */,
 				B100000018 /* SpiceInputHandler.swift */,
+				B10000001A /* SpiceAudioHandler.swift */,
 			);
 			path = SpiceEngine;
 			sourceTree = "<group>";
@@ -363,6 +366,7 @@
 				A100000016 /* SpiceSessionManager.swift in Sources */,
 				A100000017 /* SpiceDisplayHandler.swift in Sources */,
 				A100000018 /* SpiceInputHandler.swift in Sources */,
+				A10000001A /* SpiceAudioHandler.swift in Sources */,
 				A100000019 /* MetalRenderer.swift in Sources */,
 				A100000020 /* MetalDisplayViewController.swift in Sources */,
 				A100000021 /* Shaders.metal in Sources */,

@@ -23,6 +23,7 @@ final class SpiceSessionManager: ObservableObject {
 
     var displayHandler: SpiceDisplayHandler?
     var inputHandler: SpiceInputHandler?
+    var audioHandler: SpiceAudioHandler?
 
     // Prevent dealloc while callbacks are active
     private var retainedSelf: Unmanaged<SpiceSessionManager>?
@@ -95,6 +96,31 @@ final class SpiceSessionManager: ObservableObject {
             let str = String(cString: msg)
             let manager = Unmanaged<SpiceSessionManager>.fromOpaque(ctx).takeUnretainedValue()
             manager.displayHandler?.onLog?("C: \(str)")
+        }
+        callbacks.on_playback_start = { ctx, channels, freq in
+            guard let ctx = ctx else { return }
+            let manager = Unmanaged<SpiceSessionManager>.fromOpaque(ctx).takeUnretainedValue()
+            manager.audioHandler?.startPlayback(channels: channels, freq: freq)
+        }
+        callbacks.on_playback_data = { ctx, data, size in
+            guard let ctx = ctx, let data = data else { return }
+            let manager = Unmanaged<SpiceSessionManager>.fromOpaque(ctx).takeUnretainedValue()
+            manager.audioHandler?.receivePlaybackData(data, size: size)
+        }
+        callbacks.on_playback_stop = { ctx in
+            guard let ctx = ctx else { return }
+            let manager = Unmanaged<SpiceSessionManager>.fromOpaque(ctx).takeUnretainedValue()
+            manager.audioHandler?.stopPlayback()
+        }
+        callbacks.on_record_start = { ctx, channels, freq in
+            guard let ctx = ctx else { return }
+            let manager = Unmanaged<SpiceSessionManager>.fromOpaque(ctx).takeUnretainedValue()
+            manager.audioHandler?.startRecord(channels: channels, freq: freq)
+        }
+        callbacks.on_record_stop = { ctx in
+            guard let ctx = ctx else { return }
+            let manager = Unmanaged<SpiceSessionManager>.fromOpaque(ctx).takeUnretainedValue()
+            manager.audioHandler?.stopRecord()
         }
 
         // Create session
@@ -190,10 +216,10 @@ final class SpiceSessionManager: ObservableObject {
         spice_bridge_mouse_button_release(session, button, buttonMask)
     }
 
-    /// Requests the VM to change its display resolution (requires spice-vdagent).
-    func setDisplayResolution(width: Int, height: Int) {
+    /// Sends mic audio data to the VM record channel.
+    func sendRecordData(_ data: UnsafePointer<UInt8>, size: Int, timeMs: UInt32) {
         guard let session = bridgeSession else { return }
-        spice_bridge_set_display_resolution(session, Int32(width), Int32(height))
+        spice_bridge_record_send_data(session, data, size, timeMs)
     }
 
     /// Attempts to reconnect using the last config.

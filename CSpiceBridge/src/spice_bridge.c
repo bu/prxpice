@@ -76,6 +76,8 @@ struct SpiceBridgeSession {
     SpiceMainChannel *main_channel;
     SpiceInputsChannel *inputs_channel;
     SpiceDisplayChannel *display_channel;
+    SpicePlaybackChannel *playback_channel;
+    SpiceRecordChannel   *record_channel;
     // Disconnect synchronization: quit_loop waits until on_session_disconnected fires
     GMutex   disconnect_mutex;
     GCond    disconnect_cond;
@@ -126,6 +128,11 @@ static void on_display_invalidate(SpiceDisplayChannel *channel, gint x, gint y, 
 static void on_display_primary_destroy(SpiceDisplayChannel *channel, gpointer user_data);
 static void on_cursor_set(SpiceCursorChannel *channel, gint width, gint height, gint hot_x, gint hot_y, gpointer rgba, gpointer user_data);
 static void on_cursor_move(SpiceCursorChannel *channel, gint x, gint y, gpointer user_data);
+static void on_playback_start(SpicePlaybackChannel *channel, gint format, gint channels, gint freq, gpointer user_data);
+static void on_playback_data(SpicePlaybackChannel *channel, gpointer *data, gint size, gpointer user_data);
+static void on_playback_stop(SpicePlaybackChannel *channel, gpointer user_data);
+static void on_record_start(SpiceRecordChannel *channel, gint format, gint channels, gint freq, gpointer user_data);
+static void on_record_stop(SpiceRecordChannel *channel, gpointer user_data);
 
 // GObject signal handlers
 
@@ -184,8 +191,20 @@ static void on_channel_new(SpiceSession *s, SpiceChannel *channel, gpointer user
         g_signal_connect(channel, "cursor-move",
                         G_CALLBACK(on_cursor_move), session);
         spice_channel_connect(channel);
+    } else if (SPICE_IS_PLAYBACK_CHANNEL(channel)) {
+        DBLOG(session, "ch_new: playback channel, connecting");
+        session->playback_channel = SPICE_PLAYBACK_CHANNEL(channel);
+        g_signal_connect(channel, "playback-start", G_CALLBACK(on_playback_start), session);
+        g_signal_connect(channel, "playback-data",  G_CALLBACK(on_playback_data),  session);
+        g_signal_connect(channel, "playback-stop",  G_CALLBACK(on_playback_stop),  session);
+        spice_channel_connect(channel);
+    } else if (SPICE_IS_RECORD_CHANNEL(channel)) {
+        DBLOG(session, "ch_new: record channel, connecting");
+        session->record_channel = SPICE_RECORD_CHANNEL(channel);
+        g_signal_connect(channel, "record-start", G_CALLBACK(on_record_start), session);
+        g_signal_connect(channel, "record-stop",  G_CALLBACK(on_record_stop),  session);
+        spice_channel_connect(channel);
     } else {
-        // Connect other channels (main, playback, etc.)
         spice_channel_connect(channel);
     }
 }
@@ -199,6 +218,10 @@ static void on_channel_destroy(SpiceSession *s, SpiceChannel *channel, gpointer 
         session->display_channel = NULL;
     } else if (SPICE_IS_INPUTS_CHANNEL(channel)) {
         session->inputs_channel = NULL;
+    } else if (SPICE_IS_PLAYBACK_CHANNEL(channel)) {
+        session->playback_channel = NULL;
+    } else if (SPICE_IS_RECORD_CHANNEL(channel)) {
+        session->record_channel = NULL;
     }
 }
 
@@ -309,6 +332,49 @@ static void on_cursor_move(SpiceCursorChannel *channel,
     if (session->callbacks.on_cursor_move) {
         session->callbacks.on_cursor_move(session->callbacks.context, x, y);
     }
+}
+
+static void on_playback_start(SpicePlaybackChannel *channel,
+                               gint format, gint channels, gint freq,
+                               gpointer user_data) {
+    SpiceBridgeSession *session = (SpiceBridgeSession *)user_data;
+    DBLOG(session, "playback_start: fmt=%d ch=%d freq=%d", format, channels, freq);
+    if (session->callbacks.on_playback_start)
+        session->callbacks.on_playback_start(session->callbacks.context,
+                                              (int32_t)channels, (int32_t)freq);
+}
+
+static void on_playback_data(SpicePlaybackChannel *channel,
+                              gpointer *data, gint size,
+                              gpointer user_data) {
+    SpiceBridgeSession *session = (SpiceBridgeSession *)user_data;
+    if (session->callbacks.on_playback_data && data && *data)
+        session->callbacks.on_playback_data(session->callbacks.context,
+                                             (const uint8_t *)*data, (int32_t)size);
+}
+
+static void on_playback_stop(SpicePlaybackChannel *channel, gpointer user_data) {
+    SpiceBridgeSession *session = (SpiceBridgeSession *)user_data;
+    DBLOG(session, "playback_stop");
+    if (session->callbacks.on_playback_stop)
+        session->callbacks.on_playback_stop(session->callbacks.context);
+}
+
+static void on_record_start(SpiceRecordChannel *channel,
+                             gint format, gint channels, gint freq,
+                             gpointer user_data) {
+    SpiceBridgeSession *session = (SpiceBridgeSession *)user_data;
+    DBLOG(session, "record_start: fmt=%d ch=%d freq=%d", format, channels, freq);
+    if (session->callbacks.on_record_start)
+        session->callbacks.on_record_start(session->callbacks.context,
+                                            (int32_t)channels, (int32_t)freq);
+}
+
+static void on_record_stop(SpiceRecordChannel *channel, gpointer user_data) {
+    SpiceBridgeSession *session = (SpiceBridgeSession *)user_data;
+    DBLOG(session, "record_stop");
+    if (session->callbacks.on_record_stop)
+        session->callbacks.on_record_stop(session->callbacks.context);
 }
 
 #endif /* HAVE_SPICE */
@@ -840,21 +906,14 @@ void spice_bridge_quit_loop(SpiceBridgeSession *session) {
 #endif
 }
 
-void spice_bridge_set_display_resolution(SpiceBridgeSession *session,
-                                          int32_t width,
-                                          int32_t height) {
+void spice_bridge_record_send_data(SpiceBridgeSession *session,
+                                    const uint8_t *data,
+                                    size_t size,
+                                    uint32_t time_ms) {
 #ifdef HAVE_SPICE
-    if (!session || !session->main_channel) {
-        BLOG("set_display_resolution: no main channel (session=%p)", (void*)session);
-        return;
-    }
-    gboolean agent_connected = FALSE;
-    g_object_get(session->main_channel, "agent-connected", &agent_connected, NULL);
-    DBLOG(session, "set_display_resolution: %dx%d agent=%d", width, height, agent_connected);
-    // Update display 0 at position (0,0) with the requested size, enabled
-    spice_main_channel_update_display(session->main_channel, 0, 0, 0, width, height, TRUE);
-    gboolean ok = spice_main_channel_send_monitor_config(session->main_channel);
-    DBLOG(session, "set_display_resolution: send_monitor_config=%d", ok);
+    if (!session || !session->record_channel || !data || size == 0) return;
+    spice_record_channel_send_data(session->record_channel,
+                                   (gpointer)data, (gsize)size, (guint32)time_ms);
 #endif
 }
 

@@ -1,21 +1,6 @@
 import Foundation
 import Combine
 
-struct VMResolution: Identifiable {
-    let width: Int
-    let height: Int
-    var id: String { "\(width)x\(height)" }
-    var label: String { "\(width) × \(height)" }
-
-    static let presets16x10: [VMResolution] = [
-        VMResolution(width: 1280, height: 800),
-        VMResolution(width: 1440, height: 900),
-        VMResolution(width: 1600, height: 1000),
-        VMResolution(width: 1920, height: 1200),
-        VMResolution(width: 2560, height: 1600),
-    ]
-}
-
 @MainActor
 final class VMDisplayViewModel: ObservableObject {
     @Published private(set) var connectionState: SpiceConnectionState = .disconnected
@@ -26,6 +11,7 @@ final class VMDisplayViewModel: ObservableObject {
     let sessionManager = SpiceSessionManager()
     let displayHandler = SpiceDisplayHandler()
     let inputHandler = SpiceInputHandler()
+    let audioHandler = SpiceAudioHandler()
     let touchMapper = TouchToMouseMapper()
     let keyboardManager = KeyboardManager()
 
@@ -41,9 +27,14 @@ final class VMDisplayViewModel: ObservableObject {
         keyboardManager.inputHandler = inputHandler
         sessionManager.displayHandler = displayHandler
         sessionManager.inputHandler = inputHandler
+        sessionManager.audioHandler = audioHandler
+        audioHandler.sessionManager = sessionManager
 
-        // Wire debug log from display handler
+        // Wire debug log from display handler and audio handler
         displayHandler.onLog = { [weak self] msg in
+            DispatchQueue.main.async { self?.appendDebug(msg) }
+        }
+        audioHandler.onLog = { [weak self] msg in
             DispatchQueue.main.async { self?.appendDebug(msg) }
         }
 
@@ -112,10 +103,6 @@ final class VMDisplayViewModel: ObservableObject {
             // For simplicity, just send press (the toolbar button tracks active state)
             inputHandler.keyPress(scancode: scancode)
         }
-    }
-
-    func setResolution(_ resolution: VMResolution) {
-        sessionManager.setDisplayResolution(width: resolution.width, height: resolution.height)
     }
 
     func releaseAllModifiers() {
