@@ -7,7 +7,7 @@ import UIKit
 @MainActor
 struct MultiVMContainerView: View {
     @Binding var sessions: [VMSession]
-    @State private var currentIndex: Int = 0
+    @Binding var currentIndex: Int
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -58,11 +58,8 @@ struct MultiVMContainerView: View {
         .ignoresSafeArea(edges: .all)
         .statusBarHidden(true)
         .persistentSystemOverlays(.hidden)
-        .onChange(of: sessions.count) { oldCount, newCount in
-            if newCount > oldCount {
-                // New session added — switch to it
-                currentIndex = newCount - 1
-            } else if newCount > 0 && currentIndex >= newCount {
+        .onChange(of: sessions.count) { _, newCount in
+            if newCount > 0 && currentIndex >= newCount {
                 currentIndex = newCount - 1
             }
             // newCount == 0: show empty state (no auto-dismiss to avoid animation race)

@@ -6,13 +6,13 @@ import CSpiceBridge
 /// iPad mic audio to send to the VM via the SPICE record channel.
 ///
 /// Threading rules:
-/// - AVAudioEngine node graph setup (connect/disconnect) happens ONCE in init
-///   on the main thread, before the engine starts. It is never changed again,
-///   which eliminates NSException crashes from reconnecting nodes.
-/// - AVAudioEngine.start() and playerNode.play/stop are called on main thread.
-/// - receivePlaybackData is called from GLib thread; AVAudioConverter and
-///   AVAudioPlayerNode.scheduleBuffer are thread-safe.
-/// - _converter / _sourceFormat are guarded by converterLock.
+/// - AVAudioEngine graph setup (connect/disconnect) only happens on main thread,
+///   only while the engine is stopped.
+/// - AVAudioEngine.start() / playerNode.play/stop are called on main thread.
+/// - receivePlaybackData is called from GLib thread; playerNode.scheduleBuffer
+///   is thread-safe. _activeFormat is guarded by formatLock.
+/// - Audio session is always .playAndRecord + .defaultToSpeaker so the category
+///   never changes while the engine is running (avoiding AVAudioEngineConfigurationChange).
 final class SpiceAudioHandler {
     weak var sessionManager: SpiceSessionManager?
     var onLog: ((String) -> Void)?
@@ -20,15 +20,17 @@ final class SpiceAudioHandler {
     private let engine = AVAudioEngine()
     private let playerNode = AVAudioPlayerNode()
 
-    // Fixed pipeline format — playerNode is connected with this format once in init.
-    // SPICE audio (any rate/channels) is converted to this format before scheduling.
-    private let pipelineFormat: AVAudioFormat
+    // The format the playerNode is currently connected with.
+    // Written on main thread only; read on main thread only.
+    private var connectedFormat: AVAudioFormat?
 
-    // Converter: SPICE source format → pipelineFormat
-    // Written on main thread, read on GLib thread.
-    private let converterLock = NSLock()
-    private var _converter: AVAudioConverter?
-    private var _sourceFormat: AVAudioFormat?
+    // Active playback format — guards cross-thread access for receivePlaybackData.
+    private let formatLock = NSLock()
+    private var _activeFormat: AVAudioFormat?   // set on main after engine ready
+    private var activeFormat: AVAudioFormat? {
+        get { formatLock.lock(); defer { formatLock.unlock() }; return _activeFormat }
+        set { formatLock.lock(); defer { formatLock.unlock() }; _activeFormat = newValue }
+    }
 
     // Only accessed on main thread
     private var engineStarted = false
@@ -36,15 +38,10 @@ final class SpiceAudioHandler {
     private var recordStartTime: Date?
 
     init() {
-        // 48 kHz stereo Float32 non-interleaved — compatible with all iOS hardware.
-        // AVAudioEngine inserts its own hardware-rate converter automatically if needed.
-        pipelineFormat = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2)!
-
-        // Connect the graph ONCE here, before the engine ever starts.
-        // Never call engine.connect / engine.disconnectNodeOutput again —
-        // doing so while the engine is running can throw uncatchable NSExceptions.
         engine.attach(playerNode)
-        engine.connect(playerNode, to: engine.mainMixerNode, format: pipelineFormat)
+        // Do NOT connect the playerNode yet — we connect in doStartPlayback once
+        // we know the actual SPICE format. Connecting in init would require a
+        // fixed format guess and possibly a costly reconnect later.
     }
 
     // MARK: - Playback (VM → iPad speaker)
@@ -56,41 +53,45 @@ final class SpiceAudioHandler {
     }
 
     private func doStartPlayback(channels: Int32, freq: Int32) {
-        // SPICE delivers S16 interleaved PCM
-        guard let srcFmt = AVAudioFormat(
-            commonFormat: .pcmFormatInt16,
-            sampleRate: Double(max(freq, 1)),
-            channels: AVAudioChannelCount(max(channels, 1)),
-            interleaved: true
-        ) else {
+        let ch  = max(Int(channels), 1)
+        let hz  = Double(max(freq, 1))
+
+        // Float32 non-interleaved — AVAudioPlayerNode's native format.
+        // AVAudioEngine routes this to hardware, inserting sample-rate conversion if needed.
+        guard let swiftFmt = AVAudioFormat(standardFormatWithSampleRate: hz,
+                                           channels: AVAudioChannelCount(ch)) else {
             onLog?("Audio: invalid format ch=\(channels) freq=\(freq)")
             return
         }
 
-        // Rebuild converter only when the source format changes
-        converterLock.lock()
-        let sameFormat = (_sourceFormat == srcFmt)
-        converterLock.unlock()
+        let formatChanged = connectedFormat.map { $0 != swiftFmt } ?? true
 
-        if !sameFormat {
-            let conv = AVAudioConverter(from: srcFmt, to: pipelineFormat)
-            converterLock.lock()
-            _sourceFormat = srcFmt
-            _converter = conv
-            converterLock.unlock()
-            onLog?("Audio: converter ready ch=\(channels) freq=\(freq)")
+        if formatChanged {
+            // Stop engine and tear down old graph before reconnecting.
+            if engineStarted {
+                playerNode.stop()
+                engine.stop()
+                engineStarted = false
+                engine.disconnectNodeOutput(playerNode)
+                activeFormat = nil
+            }
+            engine.connect(playerNode, to: engine.mainMixerNode, format: swiftFmt)
+            connectedFormat = swiftFmt
+            onLog?("Audio: connected ch=\(ch) freq=\(Int(hz))")
         }
 
-        // Activate audio session (playback-only — no mic permission needed)
+        // Always .playAndRecord + .defaultToSpeaker so the category never needs to
+        // change when a record channel opens — prevents AVAudioEngineConfigurationChange.
         do {
             let s = AVAudioSession.sharedInstance()
-            try s.setCategory(.playback)
+            try s.setCategory(.playAndRecord,
+                              mode: .default,
+                              options: [.defaultToSpeaker, .allowBluetooth])
             try s.setActive(true)
         } catch {
             onLog?("Audio: session error: \(error)")
         }
 
-        // Start the engine once; it stays running for the session lifetime
         if !engineStarted {
             do {
                 try engine.start()
@@ -105,61 +106,45 @@ final class SpiceAudioHandler {
         if !playerNode.isPlaying {
             playerNode.play()
         }
-        onLog?("Audio: playback started ch=\(channels) freq=\(freq)")
+
+        // Publish format to GLib thread after everything is ready
+        activeFormat = swiftFmt
+        onLog?("Audio: playback started ch=\(ch) freq=\(Int(hz))")
     }
 
-    /// Called from GLib thread — AVAudioConverter and scheduleBuffer are thread-safe.
+    /// Called from GLib thread — scheduleBuffer is thread-safe.
+    /// Converts S16 interleaved PCM → Float32 non-interleaved and schedules it.
     func receivePlaybackData(_ data: UnsafePointer<UInt8>, size: Int32) {
-        converterLock.lock()
-        let converter = _converter
-        let srcFmt = _sourceFormat
-        converterLock.unlock()
+        guard let fmt = activeFormat, size > 0 else { return }
 
-        guard let conv = converter, let fmt = srcFmt, size > 0 else { return }
-
-        let bytesPerFrame = Int(fmt.channelCount) * 2  // S16 = 2 bytes/sample
-        let numFrames = Int(size) / bytesPerFrame
+        let ch        = Int(fmt.channelCount)
+        let numFrames = Int(size) / (ch * 2)   // S16 = 2 bytes/sample
         guard numFrames > 0 else { return }
 
-        // Source buffer — S16 interleaved
-        guard let srcBuf = AVAudioPCMBuffer(pcmFormat: fmt,
-                                             frameCapacity: AVAudioFrameCount(numFrames)) else { return }
-        srcBuf.frameLength = AVAudioFrameCount(numFrames)
+        guard let buf = AVAudioPCMBuffer(pcmFormat: fmt,
+                                          frameCapacity: AVAudioFrameCount(numFrames)) else { return }
+        buf.frameLength = AVAudioFrameCount(numFrames)
 
-        // Copy raw PCM bytes directly into the buffer
-        // For interleaved S16, int16ChannelData[0] points to the single interleaved block
-        if let dst = srcBuf.int16ChannelData?[0] {
-            UnsafeMutableRawPointer(dst).copyMemory(from: data, byteCount: Int(size))
+        guard let floatChannels = buf.floatChannelData else { return }
+
+        // Manual S16 interleaved → Float32 non-interleaved conversion
+        let s16   = UnsafeRawPointer(data).assumingMemoryBound(to: Int16.self)
+        let scale = Float(1.0 / 32768.0)
+        for c in 0..<ch {
+            let dst = floatChannels[c]
+            for f in 0..<numFrames {
+                dst[f] = Float(s16[f * ch + c]) * scale
+            }
         }
 
-        // Output buffer — pipelineFormat (Float32 non-interleaved, 48 kHz stereo)
-        let outCapacity = AVAudioFrameCount(
-            Double(numFrames) * pipelineFormat.sampleRate / fmt.sampleRate + 1.0
-        )
-        guard let dstBuf = AVAudioPCMBuffer(pcmFormat: pipelineFormat,
-                                             frameCapacity: outCapacity) else { return }
-
-        var inputConsumed = false
-        conv.convert(to: dstBuf, error: nil) { _, status in
-            if inputConsumed { status.pointee = .noDataNow; return nil }
-            inputConsumed = true
-            status.pointee = .haveData
-            return srcBuf
-        }
-
-        if dstBuf.frameLength > 0 {
-            playerNode.scheduleBuffer(dstBuf)
-        }
+        playerNode.scheduleBuffer(buf)
     }
 
     func stopPlayback() {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.playerNode.stop()
-            self.converterLock.lock()
-            self._converter = nil
-            self._sourceFormat = nil
-            self.converterLock.unlock()
+            self.activeFormat = nil
             self.onLog?("Audio: playback stopped")
         }
     }
@@ -180,11 +165,13 @@ final class SpiceAudioHandler {
     private func installMicTap(channels: Int32, freq: Int32) {
         guard !isRecording else { return }
 
+        // Audio session is already .playAndRecord (set in doStartPlayback) —
+        // no category change needed here, so AVAudioEngineConfigurationChange is not fired.
         let inputNode = engine.inputNode
-        let inputFmt = inputNode.outputFormat(forBus: 0)
+        let inputFmt  = inputNode.outputFormat(forBus: 0)
 
         guard inputFmt.sampleRate > 0 else {
-            onLog?("Audio: mic input format invalid")
+            onLog?("Audio: mic input format invalid (sampleRate=0)")
             return
         }
         guard let targetFmt = AVAudioFormat(commonFormat: .pcmFormatInt16,
@@ -196,17 +183,13 @@ final class SpiceAudioHandler {
             return
         }
 
-        // Switch to playAndRecord now that permission is granted
-        do {
-            let s = AVAudioSession.sharedInstance()
-            try s.setCategory(.playAndRecord, options: [.defaultToSpeaker, .allowBluetooth])
-            try s.setActive(true)
-        } catch {
-            onLog?("Audio: playAndRecord session error: \(error)")
-        }
-
+        // Start engine if not running (e.g. record channel opened before playback)
         if !engineStarted {
             do {
+                let s = AVAudioSession.sharedInstance()
+                try s.setCategory(.playAndRecord, mode: .default,
+                                  options: [.defaultToSpeaker, .allowBluetooth])
+                try s.setActive(true)
                 try engine.start()
                 engineStarted = true
             } catch {
@@ -252,13 +235,6 @@ final class SpiceAudioHandler {
             self.isRecording = false
             self.recordStartTime = nil
             self.onLog?("Audio: mic stopped")
-            // Restore playback-only session if playback is still active
-            self.converterLock.lock()
-            let hasPlayback = self._converter != nil
-            self.converterLock.unlock()
-            if hasPlayback {
-                try? AVAudioSession.sharedInstance().setCategory(.playback)
-            }
         }
     }
 

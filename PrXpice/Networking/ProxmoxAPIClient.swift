@@ -102,7 +102,41 @@ final class ProxmoxAPIClient {
         )
     }
 
+    /// Sends a start command to the VM.
+    func startVM(node: String, vmid: Int) async throws {
+        let url = ProxmoxEndpoints.startVM(baseURL: baseURL, node: node, vmid: vmid)
+        try await post(url: url)
+    }
+
+    /// Sends a stop command to the VM (hard stop).
+    func stopVM(node: String, vmid: Int) async throws {
+        let url = ProxmoxEndpoints.stopVM(baseURL: baseURL, node: node, vmid: vmid)
+        try await post(url: url)
+    }
+
     // MARK: - Private
+
+    private func post(url: URL) async throws {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Data()
+        await authenticator.authorize(&request)
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ProxmoxError.invalidResponse
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            if let errorResponse = try? JSONDecoder().decode(PVEErrorResponse.self, from: data),
+               let message = errorResponse.errors?.values.first ?? errorResponse.message {
+                throw ProxmoxError.serverError(message)
+            }
+            throw ProxmoxError.requestFailed(statusCode: httpResponse.statusCode)
+        }
+    }
 
     private func get<T: Decodable>(url: URL) async throws -> T {
         var request = URLRequest(url: url)

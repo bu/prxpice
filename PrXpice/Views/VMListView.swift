@@ -6,6 +6,7 @@ struct VMListView: View {
 
     @StateObject private var viewModel: VMListViewModel
     @State private var sessions: [VMSession] = []
+    @State private var activeSessionIndex: Int = 0
     @State private var showMultiVM = false
 
     init(connection: ServerConnection, connectionStore: ConnectionStore) {
@@ -23,11 +24,11 @@ struct VMListView: View {
                 ProgressView("Connecting...")
             } else if let error = viewModel.error {
                 errorView(error)
-            } else if viewModel.vms.filter({ $0.supportsSpice }).isEmpty {
+            } else if viewModel.vms.filter({ $0.hasSpiceConfig }).isEmpty {
                 ContentUnavailableView(
                     "No SPICE VMs Found",
                     systemImage: "desktopcomputer",
-                    description: Text("No running QEMU VMs with SPICE support found on this server.")
+                    description: Text("No QEMU VMs with SPICE display configured on this server.")
                 )
             } else {
                 vmList
@@ -57,17 +58,26 @@ struct VMListView: View {
             await viewModel.authenticate()
         }
         .fullScreenCover(isPresented: $showMultiVM) {
-            MultiVMContainerView(sessions: $sessions)
+            MultiVMContainerView(sessions: $sessions, currentIndex: $activeSessionIndex)
         }
     }
 
     private var vmList: some View {
-        List(viewModel.vms.filter { $0.supportsSpice }) { vm in
-            Button {
-                connectToVM(vm)
-            } label: {
-                VMRow(vm: vm)
-            }
+        List(viewModel.vms.filter { $0.hasSpiceConfig }) { vm in
+            VMRow(
+                vm: vm,
+                isPowering: viewModel.poweringVMs.contains(vm.id),
+                onConnect: vm.supportsSpice ? { connectToVM(vm) } : nil,
+                onPowerToggle: {
+                    Task {
+                        if vm.status == .running {
+                            await viewModel.stopVM(vm)
+                        } else {
+                            await viewModel.startVM(vm)
+                        }
+                    }
+                }
+            )
         }
         .refreshable {
             await viewModel.loadVMs()
@@ -93,8 +103,9 @@ struct VMListView: View {
     }
 
     private func connectToVM(_ vm: VMInfo) {
-        // If a session for this VM is already open, just switch back to it
-        if sessions.contains(where: { $0.vm.vmid == vm.vmid && $0.vm.node == vm.node }) {
+        // If already open, switch to it
+        if let existingIndex = sessions.firstIndex(where: { $0.vm.vmid == vm.vmid && $0.vm.node == vm.node }) {
+            activeSessionIndex = existingIndex
             showMultiVM = true
             return
         }
@@ -102,6 +113,7 @@ struct VMListView: View {
             do {
                 let config = try await viewModel.getSpiceConfig(for: vm)
                 let session = VMSession(vm: vm, spiceConfig: config)
+                activeSessionIndex = sessions.count  // index of the soon-to-be-appended session
                 sessions.append(session)
                 showMultiVM = true
             } catch {
@@ -113,9 +125,12 @@ struct VMListView: View {
 
 private struct VMRow: View {
     let vm: VMInfo
+    let isPowering: Bool
+    let onConnect: (() -> Void)?
+    let onPowerToggle: () -> Void
 
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
             Image(systemName: vm.type == .qemu ? "desktopcomputer" : "shippingbox")
                 .frame(width: 32)
                 .foregroundStyle(statusColor)
@@ -138,6 +153,26 @@ private struct VMRow: View {
 
             Spacer()
 
+            // Power button
+            Button(action: onPowerToggle) {
+                if isPowering {
+                    ProgressView()
+                        .frame(width: 28, height: 28)
+                } else {
+                    Image(systemName: vm.status == .running ? "stop.fill" : "play.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(vm.status == .running ? .red : .green)
+                        .frame(width: 28, height: 28)
+                        .background(
+                            (vm.status == .running ? Color.red : Color.green).opacity(0.12),
+                            in: Circle()
+                        )
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(isPowering)
+
+            // Status badge
             Text(vm.status.rawValue.capitalized)
                 .font(.caption.bold())
                 .foregroundStyle(statusColor)
@@ -146,7 +181,11 @@ private struct VMRow: View {
                 .background(statusColor.opacity(0.15), in: Capsule())
         }
         .padding(.vertical, 4)
-        .opacity(vm.supportsSpice ? 1.0 : 0.5)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onConnect?()
+        }
+        .opacity(onConnect == nil ? 0.75 : 1.0)
     }
 
     private var statusColor: Color {

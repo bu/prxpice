@@ -17,6 +17,7 @@ protocol MetalDisplayViewDelegate: AnyObject {
     func displayView(_ vc: MetalDisplayViewController, keyUp key: UIKey)
     func displayViewSize(_ vc: MetalDisplayViewController) -> CGSize
     func displayViewDidFourFingerSwipe(_ vc: MetalDisplayViewController, direction: UISwipeGestureRecognizer.Direction)
+    func displayView(_ vc: MetalDisplayViewController, didScroll deltaY: CGFloat)
 }
 
 /// Weak proxy breaks the CADisplayLink → target strong-reference cycle,
@@ -232,10 +233,10 @@ final class MetalDisplayViewController: UIViewController {
         switch gesture.state {
         case .changed:
             let translation = gesture.translation(in: view)
-            panOffset.x += translation.x
-            panOffset.y += translation.y
             gesture.setTranslation(.zero, in: view)
-            updateDisplayTransform()
+            delegate?.displayView(self, didScroll: translation.y)
+        case .ended, .cancelled:
+            delegate?.displayView(self, didScroll: 0) // signal end so accumulator resets
         default:
             break
         }

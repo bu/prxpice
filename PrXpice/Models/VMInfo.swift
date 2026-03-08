@@ -51,6 +51,12 @@ struct VMInfo: Identifiable, Codable, Hashable {
     // Set after fetching VM config — true if vga is qxl/qxl2/qxl4
     var hasSpiceDisplay: Bool = false
 
+    /// True if the VM has SPICE display configured (regardless of power state).
+    var hasSpiceConfig: Bool {
+        type == .qemu && hasSpiceDisplay
+    }
+
+    /// True if the VM is running and connectable via SPICE.
     var supportsSpice: Bool {
         type == .qemu && status == .running && hasSpiceDisplay
     }

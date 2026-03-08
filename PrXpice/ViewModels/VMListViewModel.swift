@@ -6,6 +6,7 @@ final class VMListViewModel: ObservableObject {
     @Published private(set) var vms: [VMInfo] = []
     @Published private(set) var isLoading = false
     @Published var error: String?
+    @Published private(set) var poweringVMs: Set<String> = []
 
     private let connection: ServerConnection
     private let apiClient: ProxmoxAPIClient
@@ -66,10 +67,11 @@ final class VMListViewModel: ObservableObject {
             }
 
             // Fetch VM configs in parallel to check for QXL/SPICE display
-            let runningQemu = allVMs.filter { $0.type == .qemu && $0.status == .running }
+            // Check all QEMU VMs (not just running) so stopped VMs show up if configured
+            let allQemu = allVMs.filter { $0.type == .qemu }
             var spiceVMIDs = Set<String>()
             await withTaskGroup(of: (String, Bool).self) { group in
-                for vm in runningQemu {
+                for vm in allQemu {
                     group.addTask { [apiClient] in
                         let hasSpice = (try? await apiClient.getVMConfig(node: vm.node, vmid: vm.vmid))?.hasSpiceDisplay ?? false
                         return (vm.id, hasSpice)
@@ -87,10 +89,12 @@ final class VMListViewModel: ObservableObject {
                 return v
             }
 
-            // Sort: SPICE-capable running first, then by name
+            // Sort: running SPICE first, then stopped SPICE, then by name
             vms = allVMs.sorted { a, b in
                 if a.supportsSpice && !b.supportsSpice { return true }
                 if !a.supportsSpice && b.supportsSpice { return false }
+                if a.hasSpiceConfig && !b.hasSpiceConfig { return true }
+                if !a.hasSpiceConfig && b.hasSpiceConfig { return false }
                 return a.name < b.name
             }
         } catch {
@@ -102,5 +106,29 @@ final class VMListViewModel: ObservableObject {
 
     func getSpiceConfig(for vm: VMInfo) async throws -> SpiceConfig {
         try await apiClient.getSpiceConfig(node: vm.node, vmid: vm.vmid)
+    }
+
+    func startVM(_ vm: VMInfo) async {
+        poweringVMs.insert(vm.id)
+        do {
+            try await apiClient.startVM(node: vm.node, vmid: vm.vmid)
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            await loadVMs()
+        } catch {
+            self.error = error.localizedDescription
+        }
+        poweringVMs.remove(vm.id)
+    }
+
+    func stopVM(_ vm: VMInfo) async {
+        poweringVMs.insert(vm.id)
+        do {
+            try await apiClient.stopVM(node: vm.node, vmid: vm.vmid)
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            await loadVMs()
+        } catch {
+            self.error = error.localizedDescription
+        }
+        poweringVMs.remove(vm.id)
     }
 }
