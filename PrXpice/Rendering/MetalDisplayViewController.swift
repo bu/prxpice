@@ -17,6 +17,7 @@ protocol MetalDisplayViewDelegate: AnyObject {
     func displayView(_ vc: MetalDisplayViewController, keyUp key: UIKey)
     func displayViewSize(_ vc: MetalDisplayViewController) -> CGSize
     func displayViewDidFourFingerSwipe(_ vc: MetalDisplayViewController, direction: UISwipeGestureRecognizer.Direction)
+    func displayView(_ vc: MetalDisplayViewController, didInsertText text: String)
 }
 
 /// Weak proxy breaks the CADisplayLink → target strong-reference cycle,
@@ -31,6 +32,16 @@ final class MetalDisplayViewController: UIViewController {
     private var displayLink: CADisplayLink?
     private var displayLinkProxy: DisplayLinkProxy?
     private var metalLayer: CAMetalLayer!
+    private lazy var keyboardField: SoftKeyboardField = {
+        let f = SoftKeyboardField()
+        f.onInsertText = { [weak self] text in
+            guard let self else { return }
+            self.delegate?.displayView(self, didInsertText: text)
+        }
+        f.parentVC = self
+        f.frame = CGRect(x: -2, y: -2, width: 1, height: 1)
+        return f
+    }()
 
     weak var delegate: MetalDisplayViewDelegate?
     var onRendererReady: ((MetalRenderer) -> Void)?
@@ -107,6 +118,16 @@ final class MetalDisplayViewController: UIViewController {
     /// Called by the representable when a session becomes the active (visible) one.
     func makeActive() {
         startDisplayLink()
+        becomeFirstResponder()
+    }
+
+    func showSoftKeyboard() {
+        if keyboardField.superview == nil { view.addSubview(keyboardField) }
+        keyboardField.becomeFirstResponder()
+    }
+
+    func hideSoftKeyboard() {
+        keyboardField.resignFirstResponder()
         becomeFirstResponder()
     }
 
@@ -351,5 +372,47 @@ final class MetalDisplayViewController: UIViewController {
               let point = viewPointToDisplayPoint(touch.location(in: view))
         else { return }
         delegate?.displayView(self, touchCancelled: touch, at: point)
+    }
+}
+
+// MARK: - Software keyboard input field
+
+/// Hidden UIView that hosts the iOS software keyboard via UIKeyInput.
+/// Using UIView directly (not UITextField) ensures insertText is called without
+/// UITextField's internal text-storage machinery interfering.
+final class SoftKeyboardField: UIView, UIKeyInput, UITextInputTraits {
+    var onInsertText: ((String) -> Void)?
+    weak var parentVC: MetalDisplayViewController?
+
+    override var canBecomeFirstResponder: Bool { true }
+
+    // UIKeyInput
+    var hasText: Bool { false }
+
+    func insertText(_ text: String) {
+        onInsertText?(text)
+    }
+
+    func deleteBackward() {
+        onInsertText?("\u{08}")
+    }
+
+    // UITextInputTraits — disable all iOS text-assistance features
+    var autocorrectionType: UITextAutocorrectionType = .no
+    var autocapitalizationType: UITextAutocapitalizationType = .none
+    var spellCheckingType: UITextSpellCheckingType = .no
+    var smartQuotesType: UITextSmartQuotesType = .no
+    var smartDashesType: UITextSmartDashesType = .no
+
+    // Forward hardware keyboard events to the parent VC so it keeps working
+    // even while this view is first responder.
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        parentVC?.pressesBegan(presses, with: event)
+    }
+    override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        parentVC?.pressesEnded(presses, with: event)
+    }
+    override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        parentVC?.pressesCancelled(presses, with: event)
     }
 }

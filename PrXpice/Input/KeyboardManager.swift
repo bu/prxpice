@@ -27,6 +27,23 @@ final class KeyboardManager {
         inputHandler?.keyRelease(scancode: scancode)
     }
 
+    /// Converts a text string from the software keyboard into SPICE key events.
+    func handleText(_ text: String) {
+        let shift: UInt32 = 0x2A
+        for char in text {
+            if char == "\u{08}" || char == "\u{7F}" {
+                inputHandler?.keyPress(scancode: 0x0E)
+                inputHandler?.keyRelease(scancode: 0x0E)
+                continue
+            }
+            guard let (base, needsShift) = ScancodeMap.sequence(for: char) else { continue }
+            if needsShift { inputHandler?.keyPress(scancode: shift) }
+            inputHandler?.keyPress(scancode: base)
+            inputHandler?.keyRelease(scancode: base)
+            if needsShift { inputHandler?.keyRelease(scancode: shift) }
+        }
+    }
+
     /// Release all currently pressed keys.
     /// Call this when the app loses focus or the keyboard is disconnected.
     func releaseAllKeys() {

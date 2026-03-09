@@ -17,6 +17,8 @@ struct VMDisplayView: View {
     @State private var controlButtonPosition: CGPoint = .zero
     @State private var showControlMenu = false
     @State private var useRelativeMouse = false
+    @State private var showKeyboard = false
+    @State private var isKeyboardVisible = false
 
     init(session: VMSession,
          isActive: Bool = true,
@@ -37,9 +39,14 @@ struct VMDisplayView: View {
                 Color.black.ignoresSafeArea()
 
                 // VM display: 16:10 aspect ratio, respects safe area top/bottom
-                MetalDisplayViewRepresentable(viewModel: viewModel, isActive: isActive, onFourFingerSwipe: onFourFingerSwipe)
-                    .aspectRatio(16.0 / 10.0, contentMode: .fit)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                MetalDisplayViewRepresentable(
+                    viewModel: viewModel,
+                    isActive: isActive,
+                    onFourFingerSwipe: onFourFingerSwipe,
+                    showKeyboard: showKeyboard
+                )
+                .aspectRatio(16.0 / 10.0, contentMode: .fit)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 // Floating debug log panel
                 if showDebugPanel {
@@ -51,6 +58,28 @@ struct VMDisplayView: View {
                                 .onChanged { v in debugPanelPosition = v.location }
                         )
                 }
+
+                // Keyboard toggle — fixed bottom right corner
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Button(action: { showKeyboard.toggle() }) {
+                            Image(systemName: isKeyboardVisible ? "keyboard.chevron.compact.down.fill" : "keyboard")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(.white)
+                                .frame(width: 40, height: 36)
+                                .background(.ultraThinMaterial)
+                                .background(Color.black.opacity(0.3))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.15), lineWidth: 0.5))
+                        }
+                        .padding(.trailing, 3)
+                        .padding(.bottom, 3)
+                    }
+                }
+                .zIndex(8)
+                .allowsHitTesting(true)
 
                 // Floating control button (draggable, snaps to edge)
                 floatingControlButton(in: geo)
@@ -67,6 +96,13 @@ struct VMDisplayView: View {
             }
         }
         .ignoresSafeArea(edges: .all)
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            isKeyboardVisible = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            isKeyboardVisible = false
+            showKeyboard = false
+        }
     }
 
     private func floatingControlButton(in geo: GeometryProxy) -> some View {
@@ -131,8 +167,6 @@ struct VMDisplayView: View {
                 .frame(width: 44, height: 44)
         }
 
-        // Items above gear: eye (debug), display (resolution), cursor (relative mouse)
-        // Items below gear: list (back to list), xmark (close)
         if isVertical {
             VStack(spacing: 0) {
                 if showControlMenu {
@@ -230,7 +264,7 @@ struct VMDisplayView: View {
                         }
                     }
                     .padding(.horizontal, 6)
-                    .padding(.top, 36)   // leave room for overlay buttons
+                    .padding(.top, 36)
                     .padding(.bottom, 4)
                 }
                 .onChange(of: entries.count) { _ in
@@ -240,7 +274,6 @@ struct VMDisplayView: View {
                 }
             }
 
-            // Floating action buttons — top-right corner
             HStack(spacing: 5) {
                 Button {
                     let all = entries.joined(separator: "\n")
@@ -283,38 +316,47 @@ struct MetalDisplayViewRepresentable: UIViewControllerRepresentable {
     let viewModel: VMDisplayViewModel
     let isActive: Bool
     let onFourFingerSwipe: (UISwipeGestureRecognizer.Direction) -> Void
+    let showKeyboard: Bool
 
     init(viewModel: VMDisplayViewModel,
          isActive: Bool = true,
-         onFourFingerSwipe: @escaping (UISwipeGestureRecognizer.Direction) -> Void = { _ in }) {
+         onFourFingerSwipe: @escaping (UISwipeGestureRecognizer.Direction) -> Void = { _ in },
+         showKeyboard: Bool = false) {
         self.viewModel = viewModel
         self.isActive = isActive
         self.onFourFingerSwipe = onFourFingerSwipe
+        self.showKeyboard = showKeyboard
     }
 
     func makeUIViewController(context: Context) -> MetalDisplayViewController {
         let vc = MetalDisplayViewController()
         vc.delegate = context.coordinator
-        // Wire renderer immediately when viewDidLoad creates it.
-        // Accessing vc.view here also triggers viewDidLoad synchronously.
         let displayHandler = viewModel.displayHandler
         vc.onRendererReady = { renderer in
             displayHandler.renderer = renderer
         }
+        context.coordinator.vc = vc
         return vc
     }
 
     func updateUIViewController(_ uiViewController: MetalDisplayViewController, context: Context) {
-        // Do NOT hide via isHidden — CAMetalLayer can lose state when the view is hidden/shown.
-        // Visibility is handled by zIndex/allowsHitTesting in the SwiftUI layer instead.
         if isActive {
             uiViewController.makeActive()
         }
-        // Belt-and-suspenders: sync renderer in case it changed.
         if let renderer = uiViewController.renderer {
             viewModel.displayHandler.renderer = renderer
         }
         context.coordinator.onFourFingerSwipe = onFourFingerSwipe
+
+        // Show/hide soft keyboard when the toggle changes
+        if showKeyboard != context.coordinator.lastShowKeyboard {
+            context.coordinator.lastShowKeyboard = showKeyboard
+            if showKeyboard {
+                uiViewController.showSoftKeyboard()
+            } else {
+                uiViewController.hideSoftKeyboard()
+            }
+        }
     }
 
     func makeCoordinator() -> Coordinator {
@@ -324,6 +366,8 @@ struct MetalDisplayViewRepresentable: UIViewControllerRepresentable {
     class Coordinator: NSObject, MetalDisplayViewDelegate {
         let viewModel: VMDisplayViewModel
         var onFourFingerSwipe: (UISwipeGestureRecognizer.Direction) -> Void = { _ in }
+        var lastShowKeyboard = false
+        weak var vc: MetalDisplayViewController?
         private var mouseEventLogged = false
 
         init(viewModel: VMDisplayViewModel) {
@@ -372,5 +416,8 @@ struct MetalDisplayViewRepresentable: UIViewControllerRepresentable {
             onFourFingerSwipe(direction)
         }
 
+        func displayView(_ vc: MetalDisplayViewController, didInsertText text: String) {
+            viewModel.keyboardManager.handleText(text)
+        }
     }
 }
