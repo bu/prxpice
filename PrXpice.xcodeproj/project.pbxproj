@@ -44,6 +44,7 @@
 		A100000034 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B100000043 /* Assets.xcassets */; };
 		A100000060 /* VMSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000060 /* VMSession.swift */; };
 		A100000061 /* MultiVMContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000061 /* MultiVMContainerView.swift */; };
+		A100000062 /* VMSoftKeyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000062 /* VMSoftKeyboard.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -69,6 +70,7 @@
 		B100000019 /* MetalRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalRenderer.swift; sourceTree = "<group>"; };
 		B100000020 /* MetalDisplayViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalDisplayViewController.swift; sourceTree = "<group>"; };
 		B100000021 /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
+		B100000062 /* VMSoftKeyboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMSoftKeyboard.swift; sourceTree = "<group>"; };
 		B100000022 /* TouchToMouseMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchToMouseMapper.swift; sourceTree = "<group>"; };
 		B100000023 /* KeyboardManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardManager.swift; sourceTree = "<group>"; };
 		B100000024 /* ScancodeMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScancodeMap.swift; sourceTree = "<group>"; };
@@ -202,6 +204,7 @@
 				B100000019 /* MetalRenderer.swift */,
 				B100000020 /* MetalDisplayViewController.swift */,
 				B100000021 /* Shaders.metal */,
+				B100000062 /* VMSoftKeyboard.swift */,
 			);
 			path = Rendering;
 			sourceTree = "<group>";
@@ -381,6 +384,7 @@
 				A100000030 /* spice_bridge.c in Sources */,
 				A100000060 /* VMSession.swift in Sources */,
 				A100000061 /* MultiVMContainerView.swift in Sources */,
+				A100000062 /* VMSoftKeyboard.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
