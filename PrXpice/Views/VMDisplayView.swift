@@ -372,12 +372,5 @@ struct MetalDisplayViewRepresentable: UIViewControllerRepresentable {
             onFourFingerSwipe(direction)
         }
 
-        func displayView(_ vc: MetalDisplayViewController, didScroll deltaY: CGFloat) {
-            if deltaY == 0 {
-                viewModel.touchMapper.resetScroll()
-            } else {
-                viewModel.touchMapper.handleScroll(translationY: deltaY)
-            }
-        }
     }
 }
