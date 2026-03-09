@@ -6,9 +6,15 @@ struct VertexOut {
     float2 texCoord;
 };
 
-// Full-screen textured quad - 2 triangles from 6 vertices (no vertex buffer needed)
-// Uses vertex_id to generate a full-screen quad
-vertex VertexOut vertexShader(uint vertexID [[vertex_id]]) {
+struct ZoomUniforms {
+    float2 uvOffset;  // UV of the top-left corner of the visible region
+    float  uvScale;   // Fraction of the texture visible (= 1/zoom)
+    float  _pad;
+};
+
+// Full-screen textured quad with zoom/pan applied in UV space.
+vertex VertexOut vertexShader(uint vertexID [[vertex_id]],
+                               constant ZoomUniforms &uniforms [[buffer(0)]]) {
     // Triangle strip positions for full-screen quad
     // vertexID: 0=BL, 1=BR, 2=TL, 3=TL, 4=BR, 5=TR
     const float2 positions[] = {
@@ -32,15 +38,21 @@ vertex VertexOut vertexShader(uint vertexID [[vertex_id]]) {
 
     VertexOut out;
     out.position = float4(positions[vertexID], 0.0, 1.0);
-    out.texCoord = texCoords[vertexID];
+    out.texCoord = texCoords[vertexID] * uniforms.uvScale + uniforms.uvOffset;
     return out;
 }
 
-// Simple texture sampling - BGRA native format means no swizzle needed
+// Simple texture sampling - BGRA native format means no swizzle needed.
+// Returns black for any UV coordinate outside the VM display area (e.g. when panned
+// beyond the content boundary while zoomed in).
 fragment half4 fragmentShader(VertexOut in [[stage_in]],
                                texture2d<half> framebuffer [[texture(0)]]) {
+    float2 uv = in.texCoord;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+        return half4(0.0, 0.0, 0.0, 1.0);
+    }
     constexpr sampler textureSampler(mag_filter::linear,
                                       min_filter::linear,
                                       address::clamp_to_edge);
-    return framebuffer.sample(textureSampler, in.texCoord);
+    return framebuffer.sample(textureSampler, uv);
 }

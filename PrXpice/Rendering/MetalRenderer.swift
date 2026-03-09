@@ -22,6 +22,27 @@ final class MetalRenderer {
     // Flag: new pixel data since last draw
     private var needsRedraw = false
 
+    // Zoom/pan uniforms set each frame by MetalDisplayViewController
+    var zoomScale: Float = 1.0
+    var panNormalized: SIMD2<Float> = .zero  // pan as fraction of view size
+
+    private struct ZoomUniforms {
+        var uvOffset: SIMD2<Float>
+        var uvScale: Float
+        var _pad: Float = 0
+    }
+
+    private func makeZoomUniforms() -> ZoomUniforms {
+        let s = 1.0 / zoomScale
+        return ZoomUniforms(
+            uvOffset: SIMD2<Float>(
+                0.5 * (1 - s) - panNormalized.x * s,
+                0.5 * (1 - s) - panNormalized.y * s
+            ),
+            uvScale: s
+        )
+    }
+
     init?(device: MTLDevice) {
         self.device = device
 
@@ -158,7 +179,9 @@ final class MetalRenderer {
             return false
         }
 
+        var uniforms = makeZoomUniforms()
         encoder.setRenderPipelineState(pipelineState)
+        encoder.setVertexBytes(&uniforms, length: MemoryLayout<ZoomUniforms>.size, index: 0)
         encoder.setFragmentTexture(texture, index: 0)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6)
         encoder.endEncoding()
