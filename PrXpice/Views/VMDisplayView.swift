@@ -94,6 +94,29 @@ struct VMDisplayView: View {
                 // Connect after the view is in the hierarchy and the renderer is wired.
                 session.connect()
             }
+            .onChange(of: geo.size) { newSize in
+                // Re-snap pill to the nearest edge center after orientation change
+                let m = 22.0
+                let pos = controlButtonPosition
+                let dLeft   = pos.x
+                let dRight  = newSize.width - pos.x
+                let dTop    = pos.y
+                let dBottom = newSize.height - pos.y
+                let nearest = min(dLeft, dRight, dTop, dBottom)
+                let snapped: CGPoint
+                if nearest == dLeft {
+                    snapped = CGPoint(x: m, y: newSize.height / 2)
+                } else if nearest == dRight {
+                    snapped = CGPoint(x: newSize.width - m, y: newSize.height / 2)
+                } else if nearest == dTop {
+                    snapped = CGPoint(x: newSize.width / 2, y: m)
+                } else {
+                    snapped = CGPoint(x: newSize.width / 2, y: newSize.height - m)
+                }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.72)) {
+                    controlButtonPosition = snapped
+                }
+            }
         }
         .ignoresSafeArea(edges: .all)
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
