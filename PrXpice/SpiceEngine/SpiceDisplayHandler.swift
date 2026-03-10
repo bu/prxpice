@@ -21,7 +21,6 @@ final class SpiceDisplayHandler {
     private var surfaceStride: Int = 0
     private var pendingWidth: Int = 0
     private var pendingHeight: Int = 0
-    private var invalidateCount = 0
 
     private func replayPendingDisplayIfNeeded() {
         guard let renderer = renderer, pendingWidth > 0, let data = surfaceDataPointer else { return }
@@ -69,12 +68,6 @@ final class SpiceDisplayHandler {
             onLog?("invalidate: no data pointer!")
             return
         }
-        invalidateCount += 1
-        if invalidateCount <= 3 {
-            onLog?("invalidate #\(invalidateCount) \(rect.x),\(rect.y) \(rect.width)x\(rect.height)")
-
-        }
-
         let dirtyRect = (
             x: Int(rect.x),
             y: Int(rect.y),

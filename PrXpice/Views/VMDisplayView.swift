@@ -391,7 +391,6 @@ struct MetalDisplayViewRepresentable: UIViewControllerRepresentable {
         var onFourFingerSwipe: (UISwipeGestureRecognizer.Direction) -> Void = { _ in }
         var lastShowKeyboard = false
         weak var vc: MetalDisplayViewController?
-        private var mouseEventLogged = false
 
         init(viewModel: VMDisplayViewModel) {
             self.viewModel = viewModel
@@ -414,12 +413,6 @@ struct MetalDisplayViewRepresentable: UIViewControllerRepresentable {
         }
 
         func displayView(_ vc: MetalDisplayViewController, pointerMovedTo point: CGPoint) {
-            if !mouseEventLogged {
-                mouseEventLogged = true
-                DispatchQueue.main.async {
-                    self.viewModel.appendDebug("mouse first hover at \(Int(point.x)),\(Int(point.y))")
-                }
-            }
             viewModel.inputHandler.mouseMove(x: Int(point.x), y: Int(point.y))
         }
 

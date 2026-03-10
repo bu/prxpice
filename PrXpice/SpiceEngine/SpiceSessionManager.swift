@@ -85,12 +85,6 @@ final class SpiceSessionManager: ObservableObject {
             let manager = Unmanaged<SpiceSessionManager>.fromOpaque(ctx).takeUnretainedValue()
             manager.displayHandler?.handleDisplayDestroy(surfaceId: surfaceId)
         }
-        callbacks.on_cursor_set = { ctx, w, h, hotX, hotY, data in
-            // Cursor rendering handled separately if needed
-        }
-        callbacks.on_cursor_move = { ctx, x, y in
-            // Cursor position updates
-        }
         callbacks.on_debug = { ctx, msg in
             guard let ctx = ctx, let msg = msg else { return }
             let str = String(cString: msg)
@@ -302,12 +296,6 @@ final class SpiceSessionManager: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             self?.connectionState = state
         }
-    }
-
-    private func cleanupSession() {
-        // bridgeSession is already nil'd and freed via disconnect() background task
-        bridgeSession = nil
-        releaseRetainedSelf()
     }
 
     private func releaseRetainedSelf() {

@@ -73,38 +73,6 @@ final class VMDisplayViewModel: ObservableObject {
         inputHandler.sendCtrlAltDel()
     }
 
-    func handleToolbarKey(_ key: InputToolbarKey) {
-        switch key {
-        case .escape:
-            inputHandler.keyTap(scancode: 0x01)
-        case .tab:
-            inputHandler.keyTap(scancode: 0x0F)
-        case .ctrlAltDel:
-            sendCtrlAltDel()
-        case .functionKey(let num):
-            // F1=0x3B, F2=0x3C, ... F10=0x44, F11=0x57, F12=0x58
-            let scancode: UInt32
-            if num <= 10 {
-                scancode = UInt32(0x3A + num)
-            } else if num == 11 {
-                scancode = 0x57
-            } else {
-                scancode = 0x58
-            }
-            inputHandler.keyTap(scancode: scancode)
-        case .modifier(let mod):
-            let scancode: UInt32
-            switch mod {
-            case .ctrl: scancode = 0x1D
-            case .alt: scancode = 0x38
-            case .shift: scancode = 0x2A
-            }
-            // Toggle: if currently pressed, release; otherwise press
-            // For simplicity, just send press (the toolbar button tracks active state)
-            inputHandler.keyPress(scancode: scancode)
-        }
-    }
-
     func releaseAllModifiers() {
         keyboardManager.releaseAllKeys()
     }

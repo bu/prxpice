@@ -32,7 +32,6 @@
 		A100000022 /* TouchToMouseMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000022 /* TouchToMouseMapper.swift */; };
 		A100000023 /* KeyboardManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000023 /* KeyboardManager.swift */; };
 		A100000024 /* ScancodeMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000024 /* ScancodeMap.swift */; };
-		A100000025 /* InputToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000025 /* InputToolbarView.swift */; };
 		A100000026 /* ConnectionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000026 /* ConnectionStore.swift */; };
 		A100000027 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000027 /* KeychainHelper.swift */; };
 		A100000028 /* GLibRunLoopIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000028 /* GLibRunLoopIntegration.swift */; };
@@ -75,7 +74,6 @@
 		B100000022 /* TouchToMouseMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchToMouseMapper.swift; sourceTree = "<group>"; };
 		B100000023 /* KeyboardManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardManager.swift; sourceTree = "<group>"; };
 		B100000024 /* ScancodeMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScancodeMap.swift; sourceTree = "<group>"; };
-		B100000025 /* InputToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputToolbarView.swift; sourceTree = "<group>"; };
 		B100000063 /* KeyboardAccessoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardAccessoryView.swift; sourceTree = "<group>"; };
 		B100000026 /* ConnectionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStore.swift; sourceTree = "<group>"; };
 		B100000027 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
@@ -217,7 +215,6 @@
 				B100000022 /* TouchToMouseMapper.swift */,
 				B100000023 /* KeyboardManager.swift */,
 				B100000024 /* ScancodeMap.swift */,
-				B100000025 /* InputToolbarView.swift */,
 				B100000063 /* KeyboardAccessoryView.swift */,
 			);
 			path = Input;
@@ -379,7 +376,6 @@
 				A100000022 /* TouchToMouseMapper.swift in Sources */,
 				A100000023 /* KeyboardManager.swift in Sources */,
 				A100000024 /* ScancodeMap.swift in Sources */,
-				A100000025 /* InputToolbarView.swift in Sources */,
 				A100000026 /* ConnectionStore.swift in Sources */,
 				A100000027 /* KeychainHelper.swift in Sources */,
 				A100000028 /* GLibRunLoopIntegration.swift in Sources */,

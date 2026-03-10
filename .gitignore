@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Xcode build artifacts
+build/
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcuserdata/
+PrXpice.xcodeproj/project.xcworkspace/
+PrXpice.xcodeproj/xcuserdata/
+
+# Build dependencies (cross-compiled, not source)
+.build-deps/
+Vendor/
+
+# Assets (managed outside git)
+PrXpice/App/Assets.xcassets/
