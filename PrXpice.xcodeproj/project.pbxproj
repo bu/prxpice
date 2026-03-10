@@ -36,6 +36,7 @@
 		A100000027 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000027 /* KeychainHelper.swift */; };
 		A100000028 /* GLibRunLoopIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000028 /* GLibRunLoopIntegration.swift */; };
 		A100000029 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000029 /* Logger.swift */; };
+		A100000064 /* CrashLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000064 /* CrashLogger.swift */; };
 		A100000030 /* spice_bridge.c in Sources */ = {isa = PBXBuildFile; fileRef = B100000030 /* spice_bridge.c */; };
 		A100000031 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100000040 /* Metal.framework */; };
 		A100000032 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100000041 /* MetalKit.framework */; };
@@ -79,6 +80,7 @@
 		B100000027 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		B100000028 /* GLibRunLoopIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GLibRunLoopIntegration.swift; sourceTree = "<group>"; };
 		B100000029 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
+		B100000064 /* CrashLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashLogger.swift; sourceTree = "<group>"; };
 		B100000030 /* spice_bridge.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = spice_bridge.c; sourceTree = "<group>"; };
 		B100000031 /* spice_bridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = spice_bridge.h; sourceTree = "<group>"; };
 		B100000032 /* module.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = module.modulemap; sourceTree = "<group>"; };
@@ -234,6 +236,7 @@
 			children = (
 				B100000028 /* GLibRunLoopIntegration.swift */,
 				B100000029 /* Logger.swift */,
+				B100000064 /* CrashLogger.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -380,6 +383,7 @@
 				A100000027 /* KeychainHelper.swift in Sources */,
 				A100000028 /* GLibRunLoopIntegration.swift in Sources */,
 				A100000029 /* Logger.swift in Sources */,
+				A100000064 /* CrashLogger.swift in Sources */,
 				A100000030 /* spice_bridge.c in Sources */,
 				A100000060 /* VMSession.swift in Sources */,
 				A100000061 /* MultiVMContainerView.swift in Sources */,

@@ -129,7 +129,7 @@ static void on_display_primary_destroy(SpiceDisplayChannel *channel, gpointer us
 static void on_cursor_set(SpiceCursorChannel *channel, gint width, gint height, gint hot_x, gint hot_y, gpointer rgba, gpointer user_data);
 static void on_cursor_move(SpiceCursorChannel *channel, gint x, gint y, gpointer user_data);
 static void on_playback_start(SpicePlaybackChannel *channel, gint format, gint channels, gint freq, gpointer user_data);
-static void on_playback_data(SpicePlaybackChannel *channel, gpointer *data, gint size, gpointer user_data);
+static void on_playback_data(SpicePlaybackChannel *channel, gpointer data, gint size, gpointer user_data);
 static void on_playback_stop(SpicePlaybackChannel *channel, gpointer user_data);
 static void on_record_start(SpiceRecordChannel *channel, gint format, gint channels, gint freq, gpointer user_data);
 static void on_record_stop(SpiceRecordChannel *channel, gpointer user_data);
@@ -345,12 +345,12 @@ static void on_playback_start(SpicePlaybackChannel *channel,
 }
 
 static void on_playback_data(SpicePlaybackChannel *channel,
-                              gpointer *data, gint size,
+                              gpointer data, gint size,
                               gpointer user_data) {
     SpiceBridgeSession *session = (SpiceBridgeSession *)user_data;
-    if (session->callbacks.on_playback_data && data && *data)
+    if (session->callbacks.on_playback_data && data)
         session->callbacks.on_playback_data(session->callbacks.context,
-                                             (const uint8_t *)*data, (int32_t)size);
+                                             (const uint8_t *)data, (int32_t)size);
 }
 
 static void on_playback_stop(SpicePlaybackChannel *channel, gpointer user_data) {

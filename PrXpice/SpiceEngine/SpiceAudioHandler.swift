@@ -118,8 +118,14 @@ final class SpiceAudioHandler {
         guard let fmt = activeFormat, size > 0 else { return }
 
         let ch        = Int(fmt.channelCount)
-        let numFrames = Int(size) / (ch * 2)   // S16 = 2 bytes/sample
+        let bytesPerFrame = ch * 2  // S16 = 2 bytes/sample
+        let numFrames = Int(size) / bytesPerFrame
         guard numFrames > 0 else { return }
+
+        // Copy raw bytes immediately — the C buffer is borrowed and may be
+        // reused by libspice after this callback returns.
+        let safeSize = numFrames * bytesPerFrame
+        let raw = Data(bytes: data, count: safeSize)
 
         guard let buf = AVAudioPCMBuffer(pcmFormat: fmt,
                                           frameCapacity: AVAudioFrameCount(numFrames)) else { return }
@@ -127,16 +133,20 @@ final class SpiceAudioHandler {
 
         guard let floatChannels = buf.floatChannelData else { return }
 
-        // Manual S16 interleaved → Float32 non-interleaved conversion
-        let s16   = UnsafeRawPointer(data).assumingMemoryBound(to: Int16.self)
+        // S16 interleaved → Float32 non-interleaved conversion
         let scale = Float(1.0 / 32768.0)
-        for c in 0..<ch {
-            let dst = floatChannels[c]
-            for f in 0..<numFrames {
-                dst[f] = Float(s16[f * ch + c]) * scale
+        raw.withUnsafeBytes { rawBytes in
+            guard let s16 = rawBytes.baseAddress?.assumingMemoryBound(to: Int16.self) else { return }
+            for c in 0..<ch {
+                let dst = floatChannels[c]
+                for f in 0..<numFrames {
+                    dst[f] = Float(s16[f * ch + c]) * scale
+                }
             }
         }
 
+        // Only schedule if player is still active
+        guard playerNode.isPlaying else { return }
         playerNode.scheduleBuffer(buf)
     }
 
