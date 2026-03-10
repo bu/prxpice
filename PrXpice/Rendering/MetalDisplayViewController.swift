@@ -20,6 +20,9 @@ protocol MetalDisplayViewDelegate: AnyObject {
     func displayView(_ vc: MetalDisplayViewController, didInsertText text: String)
     func displayViewScrollUp(_ vc: MetalDisplayViewController)
     func displayViewScrollDown(_ vc: MetalDisplayViewController)
+    func displayView(_ vc: MetalDisplayViewController, keyboardAccessoryTapped scancode: UInt32)
+    func displayView(_ vc: MetalDisplayViewController, keyboardAccessoryModifierDown scancode: UInt32)
+    func displayView(_ vc: MetalDisplayViewController, keyboardAccessoryModifierUp scancode: UInt32)
 }
 
 /// Weak proxy breaks the CADisplayLink → target strong-reference cycle,
@@ -39,6 +42,18 @@ final class MetalDisplayViewController: UIViewController {
         f.onInsertText = { [weak self] text in
             guard let self else { return }
             self.delegate?.displayView(self, didInsertText: text)
+        }
+        f.onScancode = { [weak self] sc in
+            guard let self else { return }
+            self.delegate?.displayView(self, keyboardAccessoryTapped: sc)
+        }
+        f.onModifierDown = { [weak self] sc in
+            guard let self else { return }
+            self.delegate?.displayView(self, keyboardAccessoryModifierDown: sc)
+        }
+        f.onModifierUp = { [weak self] sc in
+            guard let self else { return }
+            self.delegate?.displayView(self, keyboardAccessoryModifierUp: sc)
         }
         f.parentVC = self
         f.frame = CGRect(x: -2, y: -2, width: 1, height: 1)
@@ -549,19 +564,37 @@ private final class ZoomIndicatorView: UIView {
 /// UITextField's internal text-storage machinery interfering.
 final class SoftKeyboardField: UIView, UIKeyInput, UITextInputTraits {
     var onInsertText: ((String) -> Void)?
+    var onScancode: ((UInt32) -> Void)?
+    var onModifierDown: ((UInt32) -> Void)?
+    var onModifierUp: ((UInt32) -> Void)?
     weak var parentVC: MetalDisplayViewController?
 
     override var canBecomeFirstResponder: Bool { true }
+
+    private lazy var accessory: KeyboardAccessoryView = {
+        let v = KeyboardAccessoryView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.width, height: 44))
+        v.onTapScancode = { [weak self] sc in
+            self?.onScancode?(sc)
+            self?.accessory.releaseAllModifiers()
+        }
+        v.onModifierDown = { [weak self] sc in self?.onModifierDown?(sc) }
+        v.onModifierUp   = { [weak self] sc in self?.onModifierUp?(sc) }
+        return v
+    }()
+
+    override var inputAccessoryView: UIView? { accessory }
 
     // UIKeyInput
     var hasText: Bool { false }
 
     func insertText(_ text: String) {
         onInsertText?(text)
+        accessory.releaseAllModifiers()
     }
 
     func deleteBackward() {
         onInsertText?("\u{08}")
+        accessory.releaseAllModifiers()
     }
 
     // UITextInputTraits — disable all iOS text-assistance features

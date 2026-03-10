@@ -45,6 +45,7 @@
 		A100000060 /* VMSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000060 /* VMSession.swift */; };
 		A100000061 /* MultiVMContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000061 /* MultiVMContainerView.swift */; };
 		A100000062 /* VMSoftKeyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000062 /* VMSoftKeyboard.swift */; };
+		A100000063 /* KeyboardAccessoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000063 /* KeyboardAccessoryView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -75,6 +76,7 @@
 		B100000023 /* KeyboardManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardManager.swift; sourceTree = "<group>"; };
 		B100000024 /* ScancodeMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScancodeMap.swift; sourceTree = "<group>"; };
 		B100000025 /* InputToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputToolbarView.swift; sourceTree = "<group>"; };
+		B100000063 /* KeyboardAccessoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardAccessoryView.swift; sourceTree = "<group>"; };
 		B100000026 /* ConnectionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStore.swift; sourceTree = "<group>"; };
 		B100000027 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		B100000028 /* GLibRunLoopIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GLibRunLoopIntegration.swift; sourceTree = "<group>"; };
@@ -216,6 +218,7 @@
 				B100000023 /* KeyboardManager.swift */,
 				B100000024 /* ScancodeMap.swift */,
 				B100000025 /* InputToolbarView.swift */,
+				B100000063 /* KeyboardAccessoryView.swift */,
 			);
 			path = Input;
 			sourceTree = "<group>";
@@ -385,6 +388,7 @@
 				A100000060 /* VMSession.swift in Sources */,
 				A100000061 /* MultiVMContainerView.swift in Sources */,
 				A100000062 /* VMSoftKeyboard.swift in Sources */,
+				A100000063 /* KeyboardAccessoryView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -450,5 +450,18 @@ struct MetalDisplayViewRepresentable: UIViewControllerRepresentable {
         func displayViewScrollDown(_ vc: MetalDisplayViewController) {
             viewModel.inputHandler.scrollDown()
         }
+
+        func displayView(_ vc: MetalDisplayViewController, keyboardAccessoryTapped scancode: UInt32) {
+            viewModel.inputHandler.keyPress(scancode: scancode)
+            viewModel.inputHandler.keyRelease(scancode: scancode)
+        }
+
+        func displayView(_ vc: MetalDisplayViewController, keyboardAccessoryModifierDown scancode: UInt32) {
+            viewModel.inputHandler.keyPress(scancode: scancode)
+        }
+
+        func displayView(_ vc: MetalDisplayViewController, keyboardAccessoryModifierUp scancode: UInt32) {
+            viewModel.inputHandler.keyRelease(scancode: scancode)
+        }
     }
 }
