@@ -8,6 +8,7 @@ struct VMListView: View {
     @State private var sessions: [VMSession] = []
     @State private var activeSessionIndex: Int = 0
     @State private var showMultiVM = false
+    @State private var isConnecting = false
 
     init(connection: ServerConnection, connectionStore: ConnectionStore) {
         self.connection = connection
@@ -109,16 +110,19 @@ struct VMListView: View {
             showMultiVM = true
             return
         }
+        guard !isConnecting else { return }
+        isConnecting = true
         Task {
             do {
                 let config = try await viewModel.getSpiceConfig(for: vm)
                 let session = VMSession(vm: vm, spiceConfig: config)
-                activeSessionIndex = sessions.count  // index of the soon-to-be-appended session
+                activeSessionIndex = sessions.count
                 sessions.append(session)
                 showMultiVM = true
             } catch {
                 viewModel.error = error.localizedDescription
             }
+            isConnecting = false
         }
     }
 }

@@ -48,7 +48,7 @@ struct MultiVMContainerView: View {
                 if !sessions.isEmpty {
                     VStack {
                         sessionIndicator
-                            .padding(.top, 8)
+                            .padding(.top, 4)
                         Spacer()
                     }
                     .zIndex(10)
