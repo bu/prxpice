@@ -18,6 +18,8 @@ protocol MetalDisplayViewDelegate: AnyObject {
     func displayViewSize(_ vc: MetalDisplayViewController) -> CGSize
     func displayViewDidFourFingerSwipe(_ vc: MetalDisplayViewController, direction: UISwipeGestureRecognizer.Direction)
     func displayView(_ vc: MetalDisplayViewController, didInsertText text: String)
+    func displayViewScrollUp(_ vc: MetalDisplayViewController)
+    func displayViewScrollDown(_ vc: MetalDisplayViewController)
 }
 
 /// Weak proxy breaks the CADisplayLink → target strong-reference cycle,
@@ -249,6 +251,12 @@ final class MetalDisplayViewController: UIViewController {
         let hover = UIHoverGestureRecognizer(target: self, action: #selector(handleHover))
         view.addGestureRecognizer(hover)
 
+        // Bluetooth mouse / trackpad scroll wheel
+        let scroll = UIPanGestureRecognizer(target: self, action: #selector(handleScroll))
+        scroll.allowedScrollTypesMask = [.discrete, .continuous]
+        scroll.maximumNumberOfTouches = 0  // scroll events only, no finger touches
+        view.addGestureRecognizer(scroll)
+
         // 4-finger swipe to switch between VM sessions
         for direction: UISwipeGestureRecognizer.Direction in [.left, .right] {
             let swipe = UISwipeGestureRecognizer(target: self, action: #selector(handleFourFingerSwipe(_:)))
@@ -265,6 +273,24 @@ final class MetalDisplayViewController: UIViewController {
         let point = gesture.location(in: view)
         if let displayPoint = viewPointToDisplayPoint(point) {
             delegate?.displayView(self, pointerMovedTo: displayPoint)
+        }
+    }
+
+    private var scrollAccumY: CGFloat = 0
+    private let scrollThreshold: CGFloat = 10
+
+    @objc private func handleScroll(_ gesture: UIPanGestureRecognizer) {
+        if gesture.state == .began { scrollAccumY = 0 }
+        let delta = gesture.translation(in: view)
+        gesture.setTranslation(.zero, in: view)
+        scrollAccumY += delta.y
+        while scrollAccumY <= -scrollThreshold {
+            delegate?.displayViewScrollUp(self)
+            scrollAccumY += scrollThreshold
+        }
+        while scrollAccumY >= scrollThreshold {
+            delegate?.displayViewScrollDown(self)
+            scrollAccumY -= scrollThreshold
         }
     }
 

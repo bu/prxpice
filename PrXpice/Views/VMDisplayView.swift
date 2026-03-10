@@ -419,5 +419,13 @@ struct MetalDisplayViewRepresentable: UIViewControllerRepresentable {
         func displayView(_ vc: MetalDisplayViewController, didInsertText text: String) {
             viewModel.keyboardManager.handleText(text)
         }
+
+        func displayViewScrollUp(_ vc: MetalDisplayViewController) {
+            viewModel.inputHandler.scrollUp()
+        }
+
+        func displayViewScrollDown(_ vc: MetalDisplayViewController) {
+            viewModel.inputHandler.scrollDown()
+        }
     }
 }
