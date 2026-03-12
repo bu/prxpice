@@ -25,8 +25,8 @@
 		A100000016 /* SpiceSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000016 /* SpiceSessionManager.swift */; };
 		A100000017 /* SpiceDisplayHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000017 /* SpiceDisplayHandler.swift */; };
 		A100000018 /* SpiceInputHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000018 /* SpiceInputHandler.swift */; };
-		A10000001A /* SpiceAudioHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000001A /* SpiceAudioHandler.swift */; };
 		A100000019 /* MetalRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000019 /* MetalRenderer.swift */; };
+		A10000001A /* SpiceAudioHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000001A /* SpiceAudioHandler.swift */; };
 		A100000020 /* MetalDisplayViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000020 /* MetalDisplayViewController.swift */; };
 		A100000021 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = B100000021 /* Shaders.metal */; };
 		A100000022 /* TouchToMouseMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000022 /* TouchToMouseMapper.swift */; };
@@ -36,7 +36,6 @@
 		A100000027 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000027 /* KeychainHelper.swift */; };
 		A100000028 /* GLibRunLoopIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000028 /* GLibRunLoopIntegration.swift */; };
 		A100000029 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000029 /* Logger.swift */; };
-		A100000064 /* CrashLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000064 /* CrashLogger.swift */; };
 		A100000030 /* spice_bridge.c in Sources */ = {isa = PBXBuildFile; fileRef = B100000030 /* spice_bridge.c */; };
 		A100000031 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100000040 /* Metal.framework */; };
 		A100000032 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100000041 /* MetalKit.framework */; };
@@ -46,6 +45,7 @@
 		A100000061 /* MultiVMContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000061 /* MultiVMContainerView.swift */; };
 		A100000062 /* VMSoftKeyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000062 /* VMSoftKeyboard.swift */; };
 		A100000063 /* KeyboardAccessoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000063 /* KeyboardAccessoryView.swift */; };
+		A100000064 /* CrashLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000064 /* CrashLogger.swift */; };
 		A100000065 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000065 /* SessionStore.swift */; };
 /* End PBXBuildFile section */
 
@@ -68,20 +68,17 @@
 		B100000016 /* SpiceSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpiceSessionManager.swift; sourceTree = "<group>"; };
 		B100000017 /* SpiceDisplayHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpiceDisplayHandler.swift; sourceTree = "<group>"; };
 		B100000018 /* SpiceInputHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpiceInputHandler.swift; sourceTree = "<group>"; };
-		B10000001A /* SpiceAudioHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpiceAudioHandler.swift; sourceTree = "<group>"; };
 		B100000019 /* MetalRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalRenderer.swift; sourceTree = "<group>"; };
+		B10000001A /* SpiceAudioHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpiceAudioHandler.swift; sourceTree = "<group>"; };
 		B100000020 /* MetalDisplayViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalDisplayViewController.swift; sourceTree = "<group>"; };
 		B100000021 /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
-		B100000062 /* VMSoftKeyboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMSoftKeyboard.swift; sourceTree = "<group>"; };
 		B100000022 /* TouchToMouseMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchToMouseMapper.swift; sourceTree = "<group>"; };
 		B100000023 /* KeyboardManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardManager.swift; sourceTree = "<group>"; };
 		B100000024 /* ScancodeMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScancodeMap.swift; sourceTree = "<group>"; };
-		B100000063 /* KeyboardAccessoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardAccessoryView.swift; sourceTree = "<group>"; };
 		B100000026 /* ConnectionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStore.swift; sourceTree = "<group>"; };
 		B100000027 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		B100000028 /* GLibRunLoopIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GLibRunLoopIntegration.swift; sourceTree = "<group>"; };
 		B100000029 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
-		B100000064 /* CrashLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashLogger.swift; sourceTree = "<group>"; };
 		B100000030 /* spice_bridge.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = spice_bridge.c; sourceTree = "<group>"; };
 		B100000031 /* spice_bridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = spice_bridge.h; sourceTree = "<group>"; };
 		B100000032 /* module.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = module.modulemap; sourceTree = "<group>"; };
@@ -92,8 +89,11 @@
 		B100000042 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		B100000043 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B100000060 /* VMSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMSession.swift; sourceTree = "<group>"; };
-		B100000065 /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		B100000061 /* MultiVMContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiVMContainerView.swift; sourceTree = "<group>"; };
+		B100000062 /* VMSoftKeyboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMSoftKeyboard.swift; sourceTree = "<group>"; };
+		B100000063 /* KeyboardAccessoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardAccessoryView.swift; sourceTree = "<group>"; };
+		B100000064 /* CrashLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashLogger.swift; sourceTree = "<group>"; };
+		B100000065 /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -457,6 +457,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = MU335F3K6A;
@@ -475,6 +476,7 @@
 					"$(PROJECT_DIR)/CSpiceBridge/include",
 				);
 				INFOPLIST_FILE = PrXpice/App/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -504,11 +506,14 @@
 					"-lz",
 					"-liconv",
 					"-lresolv",
-					"-framework VideoToolbox",
-					"-framework CoreMedia",
-					"-framework CoreVideo",
+					"-framework",
+					VideoToolbox,
+					"-framework",
+					CoreMedia,
+					"-framework",
+					CoreVideo,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.prxpice.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.Dn0w.PrXpice;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -523,6 +528,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = MU335F3K6A;
@@ -540,6 +546,7 @@
 					"$(PROJECT_DIR)/CSpiceBridge/include",
 				);
 				INFOPLIST_FILE = PrXpice/App/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -569,9 +576,12 @@
 					"-lz",
 					"-liconv",
 					"-lresolv",
-					"-framework VideoToolbox",
-					"-framework CoreMedia",
-					"-framework CoreVideo",
+					"-framework",
+					VideoToolbox,
+					"-framework",
+					CoreMedia,
+					"-framework",
+					CoreVideo,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.prxpice.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
