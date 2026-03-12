@@ -180,7 +180,24 @@ static void on_channel_new(SpiceSession *s, SpiceChannel *channel, gpointer user
         g_signal_connect(channel, "display-primary-destroy",
                         G_CALLBACK(on_display_primary_destroy), session);
 
+        /* Request H.264 as the preferred video codec for display streams.
+         * VideoToolbox provides hardware H.264 decode on iOS.
+         * Falls back to MJPEG automatically if the server doesn't support H.264. */
         spice_channel_connect(channel);
+        static const gint codecs[] = {
+            SPICE_VIDEO_CODEC_TYPE_H264,
+            SPICE_VIDEO_CODEC_TYPE_H265,
+            SPICE_VIDEO_CODEC_TYPE_MJPEG,
+        };
+        GError *codec_err = NULL;
+        spice_display_channel_change_preferred_video_codec_types(
+            channel, codecs, G_N_ELEMENTS(codecs), &codec_err);
+        if (codec_err) {
+            DBLOG(session, "ch_new: codec pref not accepted: %s", codec_err->message);
+            g_error_free(codec_err);
+        } else {
+            DBLOG(session, "ch_new: preferred codecs: H264, H265, MJPEG");
+        }
     } else if (SPICE_IS_INPUTS_CHANNEL(channel)) {
         BLOG("on_channel_new: is inputs channel, connecting");
         session->inputs_channel = SPICE_INPUTS_CHANNEL(channel);

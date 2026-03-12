@@ -500,6 +500,9 @@
 					"-lz",
 					"-liconv",
 					"-lresolv",
+					"-framework VideoToolbox",
+					"-framework CoreMedia",
+					"-framework CoreVideo",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.prxpice.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -562,6 +565,9 @@
 					"-lz",
 					"-liconv",
 					"-lresolv",
+					"-framework VideoToolbox",
+					"-framework CoreMedia",
+					"-framework CoreVideo",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.prxpice.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";

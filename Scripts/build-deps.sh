@@ -436,7 +436,7 @@ conditional = (
     "if spice_glib_has_gstreamer\n"
     "  spice_client_glib_sources += files('channel-display-gst.c')\n"
     "else\n"
-    "  spice_client_glib_sources += files('channel-display-gst-stub.c')\n"
+    "  spice_client_glib_sources += files('channel-display-vtb.c')\n"
     "endif\n"
 )
 assert marker in content, "library() call not found in src/meson.build"
@@ -510,27 +510,9 @@ with open('src/channel-display.c', 'w') as f:
 print("channel-display.c: hand_pipeline_to_widget guarded")
 PYEOF
 
-        # Patch 5: create stub for no-GStreamer builds
-        cat > src/channel-display-gst-stub.c << 'CEOF'
-/* channel-display-gst-stub.c
- * Stub GStreamer video decoder — used when cross-compiling for targets
- * (e.g. iOS) where GStreamer is not available. Video stream decoding is
- * simply disabled; all other SPICE channels (display, input, cursor) work. */
-#include "config.h"
-#include "spice-client.h"
-#include "spice-common.h"
-#include "channel-display-priv.h"
-
-gboolean gstvideo_has_codec(int codec_type)
-{
-    return FALSE;
-}
-
-VideoDecoder* create_gstreamer_decoder(int codec_type, display_stream *stream)
-{
-    return NULL;
-}
-CEOF
+        # Patch 5: install VideoToolbox H.264/H.265 decoder (replaces GStreamer stub)
+        cp "$SCRIPT_DIR/channel-display-vtb.c" src/channel-display-vtb.c
+        echo "Installed VideoToolbox decoder"
 
         # Patch 6: wrap spice-gstaudio.c in a HAVE_GSTREAMER guard.
         # Pure bash: leave the file in meson's source list but make it an empty
@@ -654,8 +636,13 @@ CROSSEOF
             -Dopus=enabled \
             -Dspice-common:tests=false
 
-        ninja -C _build -j$NJOBS
-        ninja -C _build install
+        # Build only the client library.
+        # Tools/tests link against macOS host libs and fail in cross-compile; skip them.
+        ninja -C _build -j$NJOBS src/libspice-client-glib-2.0.a
+        # Try full install (installs headers + pkgconfig). If it fails because
+        # tool executables can't link, copy the library manually as fallback.
+        ninja -C _build install 2>/dev/null || \
+            cp _build/src/libspice-client-glib-2.0.a "$PREFIX/lib/"
         log "spice-gtk done"
     else
         log "spice-gtk already built"
