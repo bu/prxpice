@@ -1,17 +1,35 @@
 # macOS
 .DS_Store
+.AppleDouble
+.LSOverride
 
-# Xcode build artifacts
-build/
-*.xcuserstate
+# Xcode
 xcuserdata/
-*.xcworkspace/xcuserdata/
-PrXpice.xcodeproj/project.xcworkspace/
-PrXpice.xcodeproj/xcuserdata/
+*.xccheckout
+*.moved-aside
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
 
-# Build dependencies (cross-compiled, not source)
+# Build
+build/
 .build-deps/
-Vendor/
 
-# Assets (managed outside git)
-PrXpice/App/Assets.xcassets/
+# Swift Package Manager
+.swiftpm/
+
+# CocoaPods
+Pods/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+
+# Env / secrets
+.env
+.env.*
+secrets.json

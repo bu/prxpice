@@ -755,7 +755,6 @@ bool spice_bridge_connect(SpiceBridgeSession *session,
         // Do NOT set tls-port or proxy — relay handles them
         if (password) {
             g_object_set(session->spice_session, "password", password, NULL);
-            DBLOG(session, "pw prefix=%.6s len=%d", password, (int)strlen(password));
         }
     } else {
         // ----------------------------------------------------------------
@@ -767,7 +766,6 @@ bool spice_bridge_connect(SpiceBridgeSession *session,
                      NULL);
         if (password) {
             g_object_set(session->spice_session, "password", password, NULL);
-            DBLOG(session, "pw prefix=%.6s len=%d", password, (int)strlen(password));
         }
         if (ca_cert) {
             char ca_tmp[256] = {0};
