@@ -36,12 +36,16 @@ final class SpiceAudioHandler {
     private var engineStarted = false
     private var isRecording = false
     private var recordStartTime: Date?
+    private var pendingRecordChannels: Int32 = 0
+    private var pendingRecordFreq: Int32 = 0
 
     init() {
         engine.attach(playerNode)
-        // Do NOT connect the playerNode yet — we connect in doStartPlayback once
-        // we know the actual SPICE format. Connecting in init would require a
-        // fixed format guess and possibly a costly reconnect later.
+        // Pre-access inputNode so AVAudioEngine registers it in the internal
+        // graph before the engine ever starts.  Without this, touching
+        // inputNode for the first time while the engine is running triggers
+        // an engine reconfiguration that can crash (NSInternalInconsistencyException).
+        _ = engine.inputNode
     }
 
     // MARK: - Playback (VM → iPad speaker)
@@ -74,6 +78,11 @@ final class SpiceAudioHandler {
                 engineStarted = false
                 engine.disconnectNodeOutput(playerNode)
                 activeFormat = nil
+                // Stopping the engine removes any installed inputNode tap.
+                // Mark isRecording false so installMicTap can reinstall it below.
+                if isRecording {
+                    isRecording = false
+                }
             }
             engine.connect(playerNode, to: engine.mainMixerNode, format: swiftFmt)
             connectedFormat = swiftFmt
@@ -110,6 +119,11 @@ final class SpiceAudioHandler {
         // Publish format to GLib thread after everything is ready
         activeFormat = swiftFmt
         onLog?("Audio: playback started ch=\(ch) freq=\(Int(hz))")
+
+        // If mic was active before a format-change engine restart, reinstall the tap.
+        if !isRecording && pendingRecordChannels > 0 {
+            installMicTap(channels: pendingRecordChannels, freq: pendingRecordFreq)
+        }
     }
 
     /// Called from GLib thread — scheduleBuffer is thread-safe.
@@ -162,7 +176,8 @@ final class SpiceAudioHandler {
     // MARK: - Record (iPad mic → VM)
 
     func startRecord(channels: Int32, freq: Int32) {
-        AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
+        onLog?("Audio: record-start ch=\(channels) freq=\(freq) — requesting mic permission")
+        let permissionHandler: (Bool) -> Void = { [weak self] granted in
             guard let self = self else { return }
             guard granted else {
                 self.onLog?("Audio: mic permission denied")
@@ -170,13 +185,37 @@ final class SpiceAudioHandler {
             }
             DispatchQueue.main.async { self.installMicTap(channels: channels, freq: freq) }
         }
+        if #available(iOS 17.0, *) {
+            AVAudioApplication.requestRecordPermission(completionHandler: permissionHandler)
+        } else {
+            AVAudioSession.sharedInstance().requestRecordPermission(permissionHandler)
+        }
     }
 
     private func installMicTap(channels: Int32, freq: Int32) {
-        guard !isRecording else { return }
+        guard !isRecording else {
+            onLog?("Audio: installMicTap skipped — already recording")
+            return
+        }
 
-        // Audio session is already .playAndRecord (set in doStartPlayback) —
-        // no category change needed here, so AVAudioEngineConfigurationChange is not fired.
+        // Ensure audio session and engine are running BEFORE reading the input
+        // node format — inputNode.outputFormat returns sampleRate=0 until the
+        // audio session is active and the engine has started.
+        if !engineStarted {
+            do {
+                let s = AVAudioSession.sharedInstance()
+                try s.setCategory(.playAndRecord, mode: .default,
+                                  options: [.defaultToSpeaker, .allowBluetooth])
+                try s.setActive(true)
+                try engine.start()
+                engineStarted = true
+                onLog?("Audio: engine started for mic-only (no playback yet)")
+            } catch {
+                onLog?("Audio: engine start for mic failed: \(error)")
+                return
+            }
+        }
+
         let inputNode = engine.inputNode
         let inputFmt  = inputNode.outputFormat(forBus: 0)
 
@@ -189,25 +228,12 @@ final class SpiceAudioHandler {
                                              channels: AVAudioChannelCount(channels),
                                              interleaved: true),
               let converter = AVAudioConverter(from: inputFmt, to: targetFmt) else {
-            onLog?("Audio: failed to create mic converter")
+            onLog?("Audio: failed to create mic converter inputFmt=\(inputFmt) ch=\(channels) freq=\(freq)")
             return
         }
 
-        // Start engine if not running (e.g. record channel opened before playback)
-        if !engineStarted {
-            do {
-                let s = AVAudioSession.sharedInstance()
-                try s.setCategory(.playAndRecord, mode: .default,
-                                  options: [.defaultToSpeaker, .allowBluetooth])
-                try s.setActive(true)
-                try engine.start()
-                engineStarted = true
-            } catch {
-                onLog?("Audio: engine start for mic failed: \(error)")
-                return
-            }
-        }
-
+        pendingRecordChannels = channels
+        pendingRecordFreq = freq
         recordStartTime = Date()
         isRecording = true
 

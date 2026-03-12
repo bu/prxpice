@@ -35,6 +35,7 @@ final class VMDisplayViewModel: ObservableObject {
             DispatchQueue.main.async { self?.appendDebug(msg) }
         }
         audioHandler.onLog = { [weak self] msg in
+            CrashLogger.log(msg)
             DispatchQueue.main.async { self?.appendDebug(msg) }
         }
 
