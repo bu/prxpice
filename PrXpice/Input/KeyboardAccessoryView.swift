@@ -100,13 +100,11 @@ final class KeyboardAccessoryView: UIView {
     }
 
     private func setup() {
-        backgroundColor = Self.kbBackground
+        backgroundColor = .clear
 
         // Height constraint — driven by expand/collapse
         heightConstraint = heightAnchor.constraint(equalToConstant: expandedHeight)
         heightConstraint.isActive = true
-
-        backgroundColor = .clear
 
         // Scrollable key area
         scrollView.showsHorizontalScrollIndicator = false
