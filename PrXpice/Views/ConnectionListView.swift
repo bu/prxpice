@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ConnectionListView: View {
     @EnvironmentObject private var connectionStore: ConnectionStore
+    @EnvironmentObject private var sessionStore: SessionStore
     @State private var showingAddSheet = false
     @State private var editingConnection: ServerConnection?
     @State private var selectedConnection: ServerConnection?
@@ -31,6 +32,16 @@ struct ConnectionListView: View {
                         Image(systemName: "gear")
                     }
                 }
+                if !sessionStore.sessions.isEmpty {
+                    ToolbarItem(placement: .bottomBar) {
+                        Button {
+                            sessionStore.showMultiVM = true
+                        } label: {
+                            Label("\(sessionStore.sessions.count) Active", systemImage: "desktopcomputer.fill")
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
             }
             .sheet(isPresented: $showingAddSheet) {
                 AddConnectionView(connectionStore: connectionStore)
@@ -41,6 +52,9 @@ struct ConnectionListView: View {
             .navigationDestination(item: $selectedConnection) { connection in
                 VMListView(connection: connection, connectionStore: connectionStore)
             }
+        }
+        .fullScreenCover(isPresented: $sessionStore.showMultiVM) {
+            MultiVMContainerView(sessions: $sessionStore.sessions, currentIndex: $sessionStore.activeSessionIndex)
         }
     }
 

@@ -4,10 +4,8 @@ struct VMListView: View {
     let connection: ServerConnection
     let connectionStore: ConnectionStore
 
+    @EnvironmentObject private var sessionStore: SessionStore
     @StateObject private var viewModel: VMListViewModel
-    @State private var sessions: [VMSession] = []
-    @State private var activeSessionIndex: Int = 0
-    @State private var showMultiVM = false
     @State private var isConnecting = false
 
     init(connection: ServerConnection, connectionStore: ConnectionStore) {
@@ -45,21 +43,9 @@ struct VMListView: View {
                 }
                 .disabled(viewModel.isLoading)
             }
-            if !sessions.isEmpty {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        showMultiVM = true
-                    } label: {
-                        Label("\(sessions.count)", systemImage: "desktopcomputer.fill")
-                    }
-                }
-            }
         }
         .task {
             await viewModel.authenticate()
-        }
-        .fullScreenCover(isPresented: $showMultiVM) {
-            MultiVMContainerView(sessions: $sessions, currentIndex: $activeSessionIndex)
         }
     }
 
@@ -105,9 +91,9 @@ struct VMListView: View {
 
     private func connectToVM(_ vm: VMInfo) {
         // If already open, switch to it
-        if let existingIndex = sessions.firstIndex(where: { $0.vm.vmid == vm.vmid && $0.vm.node == vm.node }) {
-            activeSessionIndex = existingIndex
-            showMultiVM = true
+        if let existingIndex = sessionStore.sessions.firstIndex(where: { $0.vm.vmid == vm.vmid && $0.vm.node == vm.node }) {
+            sessionStore.activeSessionIndex = existingIndex
+            sessionStore.showMultiVM = true
             return
         }
         guard !isConnecting else { return }
@@ -116,9 +102,9 @@ struct VMListView: View {
             do {
                 let config = try await viewModel.getSpiceConfig(for: vm)
                 let session = VMSession(vm: vm, spiceConfig: config)
-                sessions.append(session)
-                activeSessionIndex = sessions.count - 1
-                showMultiVM = true
+                sessionStore.sessions.append(session)
+                sessionStore.activeSessionIndex = sessionStore.sessions.count - 1
+                sessionStore.showMultiVM = true
             } catch {
                 viewModel.error = error.localizedDescription
             }
