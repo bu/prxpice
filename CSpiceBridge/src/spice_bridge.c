@@ -19,6 +19,7 @@
 #include <os/log.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -434,6 +435,10 @@ static void *tls_relay_worker(void *arg) {
         sa.sin_addr   = addr4;
 
         server_fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (server_fd >= 0) {
+            int nodelay = 1;
+            setsockopt(server_fd, IPPROTO_TCP, TCP_NODELAY, &nodelay, sizeof(nodelay));
+        }
         if (server_fd < 0 || connect(server_fd, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
             DBLOG(session, "relay[%d]: connect to %s:%d failed errno=%d",
                   client_fd, conn_host, conn_port, errno);
@@ -874,20 +879,11 @@ void spice_bridge_mouse_button_release(SpiceBridgeSession *session,
 #endif
 }
 
-static gboolean glib_heartbeat(gpointer user_data) {
-    SpiceBridgeSession *session = (SpiceBridgeSession *)user_data;
-    DBLOG(session, "glib_loop alive");
-    return G_SOURCE_CONTINUE; // keep firing every 5s
-}
-
 void spice_bridge_run_loop(SpiceBridgeSession *session) {
     if (!session) return;
     DBLOG(session, "run_loop: ensuring shared GLib loop is running");
 #ifdef HAVE_SPICE
-    // Start the singleton shared GLib loop thread if not already running.
-    // Returns immediately — the shared loop runs for the app lifetime.
     ensure_shared_loop();
-    g_timeout_add(5000, glib_heartbeat, session);
 #endif
 }
 

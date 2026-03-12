@@ -173,7 +173,8 @@ final class MetalDisplayViewController: UIViewController {
         proxy.target = self
         displayLinkProxy = proxy
         let link = CADisplayLink(target: proxy, selector: #selector(DisplayLinkProxy.tick))
-        link.preferredFramesPerSecond = 60
+        // Allow up to 120 fps on ProMotion displays; floor at 30 for battery.
+        link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 120, preferred: 60)
         link.add(to: .main, forMode: .common)
         displayLink = link
     }

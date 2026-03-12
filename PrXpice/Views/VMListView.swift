@@ -116,8 +116,8 @@ struct VMListView: View {
             do {
                 let config = try await viewModel.getSpiceConfig(for: vm)
                 let session = VMSession(vm: vm, spiceConfig: config)
-                activeSessionIndex = sessions.count
                 sessions.append(session)
+                activeSessionIndex = sessions.count - 1
                 showMultiVM = true
             } catch {
                 viewModel.error = error.localizedDescription

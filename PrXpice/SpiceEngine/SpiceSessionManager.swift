@@ -49,7 +49,7 @@ final class SpiceSessionManager: ObservableObject {
 
     /// Connects to a SPICE server with the given configuration.
     func connect(config: SpiceConfig) {
-        guard connectionState == .disconnected || connectionState != .connecting else { return }
+        guard connectionState == .disconnected else { return }
         lastConfig = config
         reconnectAttempts = 0
 

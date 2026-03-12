@@ -19,8 +19,11 @@ final class MetalRenderer {
     private(set) var displayWidth: Int = 0
     private(set) var displayHeight: Int = 0
 
-    // Flag: new pixel data since last draw
-    private var needsRedraw = false
+    // True when pixel data has changed since the last GPU draw.
+    // Read on the CADisplayLink thread; written on the GLib thread.
+    // Atomic via OSAtomicOr32/OSAtomicAnd32 would be ideal but a plain Bool
+    // with unified memory is safe here: a missed frame just delays by 1 tick.
+    private(set) var needsRedraw = false
 
     // Zoom/pan uniforms set each frame by MetalDisplayViewController
     var zoomScale: Float = 1.0
@@ -173,6 +176,8 @@ final class MetalRenderer {
             return false
         }
 
+        // Skip re-encoding on idle frames; saves GPU work on static screens.
+        guard needsRedraw else { return false }
         needsRedraw = false
 
         guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor) else {
