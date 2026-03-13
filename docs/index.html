@@ -108,6 +108,50 @@
     }
     footer a { color: var(--accent); text-decoration: none; }
     footer a:hover { text-decoration: underline; }
+    .download {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 0 24px 64px;
+    }
+    .download-box {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px;
+      text-align: center;
+    }
+    .download-box h2 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .download-box p {
+      color: var(--muted);
+      font-size: 15px;
+      margin-bottom: 24px;
+    }
+    .download-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      padding: 14px 32px;
+      border-radius: 980px;
+      font-size: 17px;
+      font-weight: 600;
+      transition: opacity 0.15s;
+    }
+    .download-btn:hover { opacity: 0.8; }
+    .download-btn svg { flex-shrink: 0; }
+    .download-note {
+      margin-top: 16px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .download-note a { color: var(--accent); text-decoration: none; }
+    .download-note a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -119,6 +163,25 @@
       <a href="https://github.com/Dn0w/PrXpice" class="btn btn-primary">View on GitHub</a>
       <a href="privacy.html" class="btn btn-secondary">Privacy Policy</a>
       <a href="license.html" class="btn btn-secondary">License</a>
+    </div>
+  </div>
+
+  <div class="download">
+    <div class="download-box">
+      <h2>Download PrXpice</h2>
+      <p>Version 1.0.0 &nbsp;&middot;&nbsp; iOS 15.0+ &nbsp;&middot;&nbsp; iPad &amp; iPhone</p>
+      <a href="PrXpice.ipa" class="download-btn" download>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 2v10m0 0l-3-3m3 3l3-3M3 14v2a1 1 0 001 1h12a1 1 0 001-1v-2" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Download IPA
+      </a>
+      <p class="download-note">
+        Sideload using <a href="https://altstore.io" target="_blank">AltStore</a>,
+        <a href="https://sideloadly.io" target="_blank">Sideloadly</a>, or
+        <a href="https://github.com/opa334/TrollStore" target="_blank">TrollStore</a>.
+        <br>Re-sign with your Apple ID before installing.
+      </p>
     </div>
   </div>
 
