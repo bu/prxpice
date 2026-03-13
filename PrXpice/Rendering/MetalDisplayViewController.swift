@@ -580,6 +580,7 @@ final class SoftKeyboardField: UIView, UIKeyInput, UITextInputTraits {
         }
         v.onModifierDown = { [weak self] sc in self?.onModifierDown?(sc) }
         v.onModifierUp   = { [weak self] sc in self?.onModifierUp?(sc) }
+        v.onHideKeyboard = { [weak self] in self?.resignFirstResponder() }
         return v
     }()
 

@@ -7,6 +7,7 @@ final class KeyboardAccessoryView: UIView {
     var onTapScancode: ((_ scancode: UInt32) -> Void)?
     var onModifierDown: ((_ scancode: UInt32) -> Void)?
     var onModifierUp: ((_ scancode: UInt32) -> Void)?
+    var onHideKeyboard: (() -> Void)?
 
     // MARK: - Dynamic colors
 
@@ -86,6 +87,7 @@ final class KeyboardAccessoryView: UIView {
     private let stack = UIStackView()
     private let handle = UIView()       // always-visible drag handle strip
     private let handlePill = UIView()   // visual pill inside handle
+    private let hideKbButton = UIButton(type: .custom)
 
     // MARK: - Init
 
@@ -120,10 +122,33 @@ final class KeyboardAccessoryView: UIView {
         stack.translatesAutoresizingMaskIntoConstraints = false
         scrollView.addSubview(stack)
 
+        // Hide keyboard button — fixed to right edge, always visible
+        let img = UIImage(systemName: "keyboard.chevron.compact.down",
+                          withConfiguration: UIImage.SymbolConfiguration(pointSize: 14, weight: .regular))
+        hideKbButton.setImage(img, for: .normal)
+        hideKbButton.tintColor = .label
+        hideKbButton.backgroundColor = Self.keyDark
+        hideKbButton.layer.cornerRadius = 5
+        hideKbButton.layer.shadowColor = UIColor.black.cgColor
+        hideKbButton.layer.shadowOpacity = 0.35
+        hideKbButton.layer.shadowOffset = CGSize(width: 0, height: 1)
+        hideKbButton.layer.shadowRadius = 0
+        hideKbButton.translatesAutoresizingMaskIntoConstraints = false
+        hideKbButton.addTarget(self, action: #selector(hideKeyboardTapped), for: .touchUpInside)
+        addSubview(hideKbButton)
+
+        NSLayoutConstraint.activate([
+            hideKbButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            hideKbButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            hideKbButton.widthAnchor.constraint(equalToConstant: 44),
+            hideKbButton.topAnchor.constraint(equalTo: topAnchor, constant: 6),
+            hideKbButton.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -6),
+        ])
+
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: hideKbButton.leadingAnchor, constant: -4),
             scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
 
             stack.topAnchor.constraint(equalTo: scrollView.topAnchor, constant: 6),
@@ -178,6 +203,7 @@ final class KeyboardAccessoryView: UIView {
         heightConstraint.constant = collapsedHeight
         UIView.animate(withDuration: 0.25, delay: 0, options: .curveEaseInOut) {
             self.scrollView.alpha = 0
+            self.hideKbButton.alpha = 0
             self.handlePill.alpha = 1
             self.superview?.layoutIfNeeded()
         }
@@ -189,9 +215,14 @@ final class KeyboardAccessoryView: UIView {
         heightConstraint.constant = expandedHeight
         UIView.animate(withDuration: 0.25, delay: 0, options: .curveEaseInOut) {
             self.scrollView.alpha = 1
+            self.hideKbButton.alpha = 1
             self.handlePill.alpha = 0
             self.superview?.layoutIfNeeded()
         }
+    }
+
+    @objc private func hideKeyboardTapped() {
+        onHideKeyboard?()
     }
 
     // MARK: - Trait changes
