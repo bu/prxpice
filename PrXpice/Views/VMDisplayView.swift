@@ -43,8 +43,7 @@ struct VMDisplayView: View {
                     viewModel: viewModel,
                     isActive: isActive,
                     onFourFingerSwipe: onFourFingerSwipe,
-                    showKeyboard: showKeyboard,
-                    vmSwitchHotkey: session.vmSwitchHotkey
+                    showKeyboard: showKeyboard
                 )
                 .aspectRatio(16.0 / 10.0, contentMode: .fit)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

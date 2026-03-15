@@ -101,7 +101,7 @@ struct VMListView: View {
         Task {
             do {
                 let config = try await viewModel.getSpiceConfig(for: vm)
-                let session = VMSession(vm: vm, spiceConfig: config, vmSwitchHotkey: connection.vmSwitchHotkey)
+                let session = VMSession(vm: vm, spiceConfig: config)
                 sessionStore.sessions.append(session)
                 sessionStore.activeSessionIndex = sessionStore.sessions.count - 1
                 sessionStore.showMultiVM = true
