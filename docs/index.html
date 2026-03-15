@@ -99,21 +99,19 @@
     .card-icon { font-size: 28px; margin-bottom: 12px; }
     .card h3 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
     .card p { font-size: 14px; color: var(--muted); }
-    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-    .card-header h3 { margin-bottom: 0; }
-    .btn-download {
-      padding: 5px 12px;
-      border-radius: 980px;
-      font-size: 12px;
-      font-weight: 500;
-      text-decoration: none;
+    .card-download {
       background: var(--card-bg);
-      color: var(--accent);
-      border: 1px solid var(--accent);
-      transition: opacity 0.15s;
-      white-space: nowrap;
+      border-radius: 16px;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
     }
-    .btn-download:hover { opacity: 0.75; }
+    .card-download-info { display: flex; align-items: center; gap: 16px; }
+    .card-download .card-icon { font-size: 28px; margin-bottom: 0; }
+    .card-download h3 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+    .card-download p { font-size: 14px; color: var(--muted); }
     footer {
       text-align: center;
       padding: 32px 24px;
@@ -155,11 +153,21 @@
     </div>
     <div class="card">
       <div class="card-icon">⌨️</div>
-      <div class="card-header">
-        <h3>Full Input Support</h3>
-        <a href="PrXpice-macOS.zip" class="btn-download" download>⬇ macOS</a>
-      </div>
+      <h3>Full Input Support</h3>
       <p>Hardware keyboard, mouse, and touch input with SPICE protocol support.</p>
+    </div>
+  </div>
+
+  <div style="max-width: 800px; margin: 0 auto; padding: 0 24px 64px;">
+    <div class="card-download">
+      <div class="card-download-info">
+        <div class="card-icon">🖥️</div>
+        <div>
+          <h3>PrXpice for macOS</h3>
+          <p>Mac Catalyst build — requires macOS 14 or later.</p>
+        </div>
+      </div>
+      <a href="PrXpice-macOS.zip" class="btn btn-primary" download>Download</a>
     </div>
   </div>
 
