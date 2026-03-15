@@ -43,7 +43,8 @@ struct VMDisplayView: View {
                     viewModel: viewModel,
                     isActive: isActive,
                     onFourFingerSwipe: onFourFingerSwipe,
-                    showKeyboard: showKeyboard
+                    showKeyboard: showKeyboard,
+                    vmSwitchHotkey: session.vmSwitchHotkey
                 )
                 .aspectRatio(16.0 / 10.0, contentMode: .fit)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -340,15 +341,18 @@ struct MetalDisplayViewRepresentable: UIViewControllerRepresentable {
     let isActive: Bool
     let onFourFingerSwipe: (UISwipeGestureRecognizer.Direction) -> Void
     let showKeyboard: Bool
+    let vmSwitchHotkey: ServerConnection.VMSwitchModifier
 
     init(viewModel: VMDisplayViewModel,
          isActive: Bool = true,
          onFourFingerSwipe: @escaping (UISwipeGestureRecognizer.Direction) -> Void = { _ in },
-         showKeyboard: Bool = false) {
+         showKeyboard: Bool = false,
+         vmSwitchHotkey: ServerConnection.VMSwitchModifier = .control) {
         self.viewModel = viewModel
         self.isActive = isActive
         self.onFourFingerSwipe = onFourFingerSwipe
         self.showKeyboard = showKeyboard
+        self.vmSwitchHotkey = vmSwitchHotkey
     }
 
     func makeUIViewController(context: Context) -> MetalDisplayViewController {
@@ -370,6 +374,7 @@ struct MetalDisplayViewRepresentable: UIViewControllerRepresentable {
             viewModel.displayHandler.renderer = renderer
         }
         context.coordinator.onFourFingerSwipe = onFourFingerSwipe
+        uiViewController.vmSwitchHotkey = vmSwitchHotkey
 
         // Show/hide soft keyboard when the toggle changes
         if showKeyboard != context.coordinator.lastShowKeyboard {

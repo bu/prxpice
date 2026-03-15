@@ -396,30 +396,56 @@ final class MetalDisplayViewController: UIViewController {
 
     }
 
+    // MARK: - VM Switch Hotkey
+
+    var vmSwitchHotkey: ServerConnection.VMSwitchModifier = .control
+
+    /// Returns true if the VM-switch modifier key is currently held,
+    /// based on the configured hotkey for this session.
+    private func switchModifierHeld(in event: UIPressesEvent?) -> Bool {
+        guard vmSwitchHotkey != .disabled, let all = event?.allPresses else { return false }
+        return all.contains { press in
+            guard let key = press.key else { return false }
+            switch vmSwitchHotkey {
+            case .control:
+                return key.modifierFlags.contains(.control) ||
+                       key.keyCode == .keyboardLeftControl ||
+                       key.keyCode == .keyboardRightControl
+            case .command:
+                return key.modifierFlags.contains(.command) ||
+                       key.keyCode == .keyboardLeftGUI ||
+                       key.keyCode == .keyboardRightGUI
+            case .option:
+                return key.modifierFlags.contains(.alternate) ||
+                       key.keyCode == .keyboardLeftAlt ||
+                       key.keyCode == .keyboardRightAlt
+            case .disabled:
+                return false
+            }
+        }
+    }
+
+    private func isSwitchModifier(_ key: UIKey) -> Bool {
+        switch vmSwitchHotkey {
+        case .control:  return key.modifierFlags.contains(.control)
+        case .command:  return key.modifierFlags.contains(.command)
+        case .option:   return key.modifierFlags.contains(.alternate)
+        case .disabled: return false
+        }
+    }
+
     // MARK: - Keyboard Events
 
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        // Detect Ctrl held via modifier flags OR by directly checking if either
-        // Ctrl key appears in the full active-press set (covers right-side Ctrl on
-        // keyboards that don't propagate it through modifierFlags correctly).
-        let ctrlHeld: Bool = {
-            if let all = event?.allPresses {
-                return all.contains {
-                    $0.key?.modifierFlags.contains(.control) == true ||
-                    $0.key?.keyCode == .keyboardLeftControl ||
-                    $0.key?.keyCode == .keyboardRightControl
-                }
-            }
-            return false
-        }()
+        let switchHeld = switchModifierHeld(in: event)
 
         for press in presses {
             guard let key = press.key else {
                 super.pressesBegan([press], with: event)
                 continue
             }
-            // Ctrl+Left/Right: switch VM sessions (intercepted, not forwarded to VM)
-            if ctrlHeld || key.modifierFlags.contains(.control) {
+            // Configured modifier + Left/Right: switch VM sessions (not forwarded to VM)
+            if switchHeld || isSwitchModifier(key) {
                 if key.keyCode == .keyboardLeftArrow {
                     delegate?.displayViewDidFourFingerSwipe(self, direction: .right)
                     continue
@@ -439,7 +465,7 @@ final class MetalDisplayViewController: UIViewController {
                 continue
             }
             // Consume key-up for intercepted shortcuts
-            if key.modifierFlags.contains(.control),
+            if isSwitchModifier(key),
                key.keyCode == .keyboardLeftArrow || key.keyCode == .keyboardRightArrow {
                 continue
             }
