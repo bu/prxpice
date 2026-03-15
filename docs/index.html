@@ -99,19 +99,6 @@
     .card-icon { font-size: 28px; margin-bottom: 12px; }
     .card h3 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
     .card p { font-size: 14px; color: var(--muted); }
-    .card-download {
-      background: var(--card-bg);
-      border-radius: 16px;
-      padding: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-    }
-    .card-download-info { display: flex; align-items: center; gap: 16px; }
-    .card-download .card-icon { font-size: 28px; margin-bottom: 0; }
-    .card-download h3 { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
-    .card-download p { font-size: 14px; color: var(--muted); }
     footer {
       text-align: center;
       padding: 32px 24px;
@@ -156,18 +143,11 @@
       <h3>Full Input Support</h3>
       <p>Hardware keyboard, mouse, and touch input with SPICE protocol support.</p>
     </div>
-  </div>
-
-  <div style="max-width: 800px; margin: 0 auto; padding: 0 24px 64px;">
-    <div class="card-download">
-      <div class="card-download-info">
-        <div class="card-icon">🖥️</div>
-        <div>
-          <h3>PrXpice for macOS</h3>
-          <p>Mac Catalyst build — requires macOS 14 or later.</p>
-        </div>
-      </div>
-      <a href="PrXpice-macOS.zip" class="btn btn-primary" download>Download</a>
+    <div class="card">
+      <div class="card-icon">💻</div>
+      <h3>macOS</h3>
+      <p>Mac Catalyst build — requires macOS 14 or later.</p>
+      <a href="PrXpice-macOS.zip" class="btn btn-primary" download style="display:inline-block;margin-top:16px;font-size:14px;padding:8px 18px;">Download</a>
     </div>
   </div>
 
