@@ -8,11 +8,13 @@ final class VMSession: Identifiable, ObservableObject {
     let vm: VMInfo
     let spiceConfig: SpiceConfig
     let viewModel: VMDisplayViewModel
+    let vmSwitchHotkey: ServerConnection.VMSwitchModifier
 
-    init(vm: VMInfo, spiceConfig: SpiceConfig) {
+    init(vm: VMInfo, spiceConfig: SpiceConfig, vmSwitchHotkey: ServerConnection.VMSwitchModifier = .control) {
         self.vm = vm
         self.spiceConfig = spiceConfig
         self.viewModel = VMDisplayViewModel(vm: vm)
+        self.vmSwitchHotkey = vmSwitchHotkey
     }
 
     func connect() {

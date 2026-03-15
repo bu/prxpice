@@ -17,6 +17,25 @@ struct ServerConnection: Identifiable, Codable, Hashable {
         case apiToken
     }
 
+    /// Modifier key used with Left/Right arrows to switch between open VMs.
+    enum VMSwitchModifier: String, Codable, CaseIterable {
+        case control
+        case command
+        case option
+        case disabled
+
+        var displayName: String {
+            switch self {
+            case .control:  return "Ctrl + Arrow"
+            case .command:  return "Cmd + Arrow"
+            case .option:   return "Opt + Arrow"
+            case .disabled: return "Disabled"
+            }
+        }
+    }
+
+    var vmSwitchHotkey: VMSwitchModifier
+
     init(
         id: UUID = UUID(),
         name: String = "",
@@ -25,7 +44,8 @@ struct ServerConnection: Identifiable, Codable, Hashable {
         authMethod: AuthMethod = .password,
         username: String = "root@pam",
         tokenID: String = "",
-        lastConnected: Date? = nil
+        lastConnected: Date? = nil,
+        vmSwitchHotkey: VMSwitchModifier = .control
     ) {
         self.id = id
         self.name = name
@@ -35,6 +55,7 @@ struct ServerConnection: Identifiable, Codable, Hashable {
         self.username = username
         self.tokenID = tokenID
         self.lastConnected = lastConnected
+        self.vmSwitchHotkey = vmSwitchHotkey
     }
 
     var baseURL: URL {
