@@ -1,8 +1,18 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @AppStorage("vmSwitchHotkey") private var vmSwitchHotkey = ServerConnection.VMSwitchModifier.control
+
     var body: some View {
         Form {
+            Section("Controls") {
+                Picker("VM Switch Hotkey", selection: $vmSwitchHotkey) {
+                    ForEach(ServerConnection.VMSwitchModifier.allCases, id: \.self) { modifier in
+                        Text(modifier.displayName).tag(modifier)
+                    }
+                }
+            }
+
             Section("About") {
                 HStack {
                     Text("Version")
