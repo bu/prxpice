@@ -34,8 +34,6 @@ struct ServerConnection: Identifiable, Codable, Hashable {
         }
     }
 
-    var vmSwitchHotkey: VMSwitchModifier
-
     init(
         id: UUID = UUID(),
         name: String = "",
@@ -44,8 +42,7 @@ struct ServerConnection: Identifiable, Codable, Hashable {
         authMethod: AuthMethod = .password,
         username: String = "root@pam",
         tokenID: String = "",
-        lastConnected: Date? = nil,
-        vmSwitchHotkey: VMSwitchModifier = .control
+        lastConnected: Date? = nil
     ) {
         self.id = id
         self.name = name
@@ -55,7 +52,6 @@ struct ServerConnection: Identifiable, Codable, Hashable {
         self.username = username
         self.tokenID = tokenID
         self.lastConnected = lastConnected
-        self.vmSwitchHotkey = vmSwitchHotkey
     }
 
     var baseURL: URL {

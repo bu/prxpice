@@ -653,6 +653,11 @@ void spice_bridge_session_free(SpiceBridgeSession *session) {
     spice_bridge_quit_loop(session);
 
 #ifdef HAVE_SPICE
+    // Clear all Swift callbacks before GObject finalization to prevent
+    // spice_session_dispose -> g_warn_message -> log_handler -> on_debug
+    // from dispatching back into Swift while the view hierarchy is torn down.
+    memset(&session->callbacks, 0, sizeof(session->callbacks));
+
     if (session->spice_session) {
         g_object_unref(session->spice_session);
     }

@@ -398,7 +398,10 @@ final class MetalDisplayViewController: UIViewController {
 
     // MARK: - VM Switch Hotkey
 
-    var vmSwitchHotkey: ServerConnection.VMSwitchModifier = .control
+    private var vmSwitchHotkey: ServerConnection.VMSwitchModifier {
+        let raw = UserDefaults.standard.string(forKey: "vmSwitchHotkey") ?? ""
+        return ServerConnection.VMSwitchModifier(rawValue: raw) ?? .control
+    }
 
     /// Returns true if the VM-switch modifier key is currently held,
     /// based on the configured hotkey for this session.

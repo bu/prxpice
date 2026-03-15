@@ -11,8 +11,6 @@ struct AddConnectionView: View {
     @State private var username: String
     @State private var tokenID: String
     @State private var secret: String
-    @State private var vmSwitchHotkey: ServerConnection.VMSwitchModifier
-
     private let editingID: UUID?
     private var isEditing: Bool { editingID != nil }
 
@@ -26,7 +24,6 @@ struct AddConnectionView: View {
         _authMethod = State(initialValue: editing?.authMethod ?? .password)
         _username = State(initialValue: editing?.username ?? "root@pam")
         _tokenID = State(initialValue: editing?.tokenID ?? "")
-        _vmSwitchHotkey = State(initialValue: editing?.vmSwitchHotkey ?? .control)
 
         // Load existing secret if editing
         if let conn = editing {
@@ -53,14 +50,6 @@ struct AddConnectionView: View {
                         set: { port = $0.filter(\.isNumber) }
                     ))
                     .keyboardType(.numberPad)
-                }
-
-                Section("Controls") {
-                    Picker("VM Switch Hotkey", selection: $vmSwitchHotkey) {
-                        ForEach(ServerConnection.VMSwitchModifier.allCases, id: \.self) { modifier in
-                            Text(modifier.displayName).tag(modifier)
-                        }
-                    }
                 }
 
                 Section("Authentication") {
@@ -111,8 +100,7 @@ struct AddConnectionView: View {
             port: portNum,
             authMethod: authMethod,
             username: username,
-            tokenID: tokenID,
-            vmSwitchHotkey: vmSwitchHotkey
+            tokenID: tokenID
         )
 
         if isEditing {
