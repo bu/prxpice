@@ -41,6 +41,7 @@
 // their GIO sources to that context, so every session's callbacks are
 // dispatched by this single thread (no multi-thread context ownership fights).
 // ---------------------------------------------------------------------------
+#ifdef HAVE_SPICE
 static GMainLoop      *s_shared_loop = NULL;
 static pthread_once_t  s_loop_once   = PTHREAD_ONCE_INIT;
 
@@ -66,6 +67,7 @@ static void init_shared_loop(void) {
 static void ensure_shared_loop(void) {
     pthread_once(&s_loop_once, init_shared_loop);
 }
+#endif // HAVE_SPICE
 // ---------------------------------------------------------------------------
 
 struct SpiceBridgeSession {
