@@ -83,6 +83,8 @@
 		B100000031 /* spice_bridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = spice_bridge.h; sourceTree = "<group>"; };
 		B100000032 /* module.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = module.modulemap; sourceTree = "<group>"; };
 		B100000033 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B100000050 /* PrXpice.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PrXpice.entitlements; sourceTree = "<group>"; };
+		B100000051 /* PrXpice-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "PrXpice-macOS.entitlements"; sourceTree = "<group>"; };
 		B100000039 /* PrXpice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PrXpice.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B100000040 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
 		B100000041 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
@@ -142,6 +144,8 @@
 			children = (
 				B100000001 /* PrXpiceApp.swift */,
 				B100000033 /* Info.plist */,
+				B100000050 /* PrXpice.entitlements */,
+				B100000051 /* PrXpice-macOS.entitlements */,
 				B100000043 /* Assets.xcassets */,
 			);
 			path = App;
@@ -510,8 +514,12 @@
 		F100000020 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD)";
+				"ARCHS[sdk=macosx*]" = x86_64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = "PrXpice/App/PrXpice.entitlements";
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "PrXpice/App/PrXpice-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -580,15 +588,18 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VENDOR_DIR = "$(PROJECT_DIR)/Vendor";
 				"VENDOR_DIR[sdk=macosx*]" = "$(PROJECT_DIR)/Vendor-catalyst";
-				"ARCHS[sdk=macosx*]" = x86_64;
 			};
 			name = Debug;
 		};
 		F100000021 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = "$(ARCHS_STANDARD)";
+				"ARCHS[sdk=macosx*]" = x86_64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = "PrXpice/App/PrXpice.entitlements";
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "PrXpice/App/PrXpice-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -656,7 +667,6 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VENDOR_DIR = "$(PROJECT_DIR)/Vendor";
 				"VENDOR_DIR[sdk=macosx*]" = "$(PROJECT_DIR)/Vendor-catalyst";
-				"ARCHS[sdk=macosx*]" = x86_64;
 			};
 			name = Release;
 		};
