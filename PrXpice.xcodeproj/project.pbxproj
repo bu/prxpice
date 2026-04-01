@@ -554,7 +554,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "$(VENDOR_DIR)/lib";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.3;
 				OTHER_LDFLAGS = (
 					"-lspice-client-glib-2.0",
 					"-lglib-2.0",
@@ -633,7 +633,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "$(VENDOR_DIR)/lib";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.3;
 				OTHER_LDFLAGS = (
 					"-lspice-client-glib-2.0",
 					"-lglib-2.0",
