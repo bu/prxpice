@@ -18,15 +18,16 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="$PROJECT_DIR/.build-deps-catalyst"
-PREFIX="$PROJECT_DIR/Vendor-catalyst"
-SOURCES_DIR="$BUILD_DIR/sources"
+SOURCES_DIR="$PROJECT_DIR/.build-deps-catalyst/sources"
 
 # Mac Catalyst cross-compilation settings
 # Catalyst requires the macOS SDK but targets the ios-macabi ABI.
 CATALYST_IOS_VERSION="17.0"
-# Auto-detect host architecture (arm64 on Apple Silicon, x86_64 on Intel)
-ARCH=$(uname -m)
+# Accept architecture as first argument, default to host arch.
+# Usage: build-deps-catalyst.sh [arm64|x86_64]
+ARCH="${1:-$(uname -m)}"
+BUILD_DIR="$PROJECT_DIR/.build-deps-catalyst-${ARCH}"
+PREFIX="$PROJECT_DIR/Vendor-catalyst-${ARCH}"
 TARGET_TRIPLE="${ARCH}-apple-ios${CATALYST_IOS_VERSION}-macabi"
 SDK="macosx"
 SDKROOT=$(xcrun --sdk $SDK --show-sdk-path)
@@ -40,15 +41,18 @@ CFLAGS="-target $TARGET_TRIPLE -isysroot $SDKROOT -O2"
 CXXFLAGS="$CFLAGS"
 LDFLAGS="-target $TARGET_TRIPLE -isysroot $SDKROOT"
 
-HOST="${ARCH}-apple-darwin"
-# Meson uses 'aarch64' as cpu_family for arm64
+# Meson uses 'aarch64' as cpu_family for arm64.
+# autotools configure --host also requires 'aarch64', not 'arm64'.
 if [ "$ARCH" = "arm64" ]; then
+    AUTOTOOLS_HOST="aarch64-apple-darwin"
     MESON_CPU_FAMILY="aarch64"
     MESON_CPU="arm64"
 else
+    AUTOTOOLS_HOST="${ARCH}-apple-darwin"
     MESON_CPU_FAMILY="x86_64"
     MESON_CPU="x86_64"
 fi
+HOST="$AUTOTOOLS_HOST"
 
 NJOBS=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
 

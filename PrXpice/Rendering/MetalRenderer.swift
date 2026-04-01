@@ -1,6 +1,7 @@
 import Foundation
 import Metal
 import QuartzCore
+import CoreVideo
 
 /// GPU-accelerated renderer for SPICE framebuffer display.
 ///
@@ -11,6 +12,16 @@ final class MetalRenderer {
     let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let pipelineState: MTLRenderPipelineState
+
+    // YUV pipeline for H.264/H.265 NV12 zero-copy fast path
+    private var yuvPipelineState: MTLRenderPipelineState?
+    private var textureCache: CVMetalTextureCache?
+    // CVMetalTexture refs keep the CVPixelBuffer alive through the render
+    private var yTextureCVRef: CVMetalTexture?
+    private var uvTextureCVRef: CVMetalTexture?
+    private var videoYTexture: MTLTexture?
+    private var videoUVTexture: MTLTexture?
+    private(set) var needsVideoRedraw = false
 
     // Single shared-storage texture — CPU writes dirty rects directly, GPU reads each frame
     private var texture: MTLTexture?
@@ -75,6 +86,20 @@ final class MetalRenderer {
             Log.rendering.error("Failed to create pipeline state: \(error)")
             return nil
         }
+
+        // YUV pipeline for NV12 H.264/H.265 zero-copy fast path
+        if let yuvFragmentFunc = library.makeFunction(name: "yuvFragmentShader") {
+            let yuvPipelineDesc = MTLRenderPipelineDescriptor()
+            yuvPipelineDesc.vertexFunction = vertexFunc
+            yuvPipelineDesc.fragmentFunction = yuvFragmentFunc
+            yuvPipelineDesc.colorAttachments[0].pixelFormat = .bgra8Unorm
+            yuvPipelineState = try? device.makeRenderPipelineState(descriptor: yuvPipelineDesc)
+        }
+
+        // CVMetalTextureCache for zero-copy NV12 plane import
+        var cache: CVMetalTextureCache?
+        CVMetalTextureCacheCreate(kCFAllocatorDefault, nil, device, nil, &cache)
+        textureCache = cache
     }
 
     /// Creates the texture pool for a new display surface.
@@ -104,6 +129,37 @@ final class MetalRenderer {
         displayWidth = 0
         displayHeight = 0
         needsRedraw = false
+        videoYTexture = nil
+        videoUVTexture = nil
+        yTextureCVRef = nil
+        uvTextureCVRef = nil
+        needsVideoRedraw = false
+    }
+
+    /// Zero-copy import of a decoded NV12 CVPixelBuffer as Metal textures.
+    /// Called from the GLib thread; CVMetalTextureCache is thread-safe.
+    func updateVideoTexture(pixelBuffer: CVPixelBuffer) {
+        guard let cache = textureCache else { return }
+        let w = CVPixelBufferGetWidth(pixelBuffer)
+        let h = CVPixelBufferGetHeight(pixelBuffer)
+
+        // Y plane (luma) — full resolution, R8Unorm
+        var yCVTex: CVMetalTexture?
+        CVMetalTextureCacheCreateTextureFromImage(
+            kCFAllocatorDefault, cache, pixelBuffer, nil,
+            .r8Unorm, w, h, 0, &yCVTex)
+        // UV plane (chroma) — half resolution, RG8Unorm
+        var uvCVTex: CVMetalTexture?
+        CVMetalTextureCacheCreateTextureFromImage(
+            kCFAllocatorDefault, cache, pixelBuffer, nil,
+            .rg8Unorm, w / 2, h / 2, 1, &uvCVTex)
+
+        guard let yCVTex = yCVTex, let uvCVTex = uvCVTex else { return }
+        yTextureCVRef  = yCVTex
+        uvTextureCVRef = uvCVTex
+        videoYTexture  = CVMetalTextureGetTexture(yCVTex)
+        videoUVTexture = CVMetalTextureGetTexture(uvCVTex)
+        needsVideoRedraw = true
     }
 
     /// Uploads pixel data for a dirty rectangle.
@@ -164,9 +220,26 @@ final class MetalRenderer {
     /// - Returns: `true` if a frame was rendered, `false` if no update was needed.
     @discardableResult
     func draw(in drawable: CAMetalDrawable, renderPassDescriptor: MTLRenderPassDescriptor) -> Bool {
-        // Always encode at minimum a clear pass so the debug color shows
         guard let commandBuffer = commandQueue.makeCommandBuffer() else { return false }
 
+        // NV12 fast path: H.264/H.265 video frame decoded via VideoToolbox
+        if let yTex = videoYTexture, let uvTex = videoUVTexture, needsVideoRedraw,
+           let yuvPS = yuvPipelineState {
+            needsVideoRedraw = false
+            guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor) else { return false }
+            var uniforms = makeZoomUniforms()
+            encoder.setRenderPipelineState(yuvPS)
+            encoder.setVertexBytes(&uniforms, length: MemoryLayout<ZoomUniforms>.size, index: 0)
+            encoder.setFragmentTexture(yTex,  index: 0)
+            encoder.setFragmentTexture(uvTex, index: 1)
+            encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6)
+            encoder.endEncoding()
+            commandBuffer.present(drawable)
+            commandBuffer.commit()
+            return true
+        }
+
+        // BGRA path: static display content or MJPEG fallback
         guard let texture = texture else {
             // No surface yet — clear to black and present
             guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor) else { return false }

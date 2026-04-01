@@ -66,6 +66,11 @@ typedef void (*SpiceBridgePlaybackStopCallback)(void *context);
 typedef void (*SpiceBridgeRecordStartCallback)(void *context, int32_t channels, int32_t freq);
 typedef void (*SpiceBridgeRecordStopCallback)(void *context);
 
+// Hardware-decoded video frame (NV12/CVPixelBuffer) from H.264/H.265 stream.
+// cv_pixel_buffer is a CVPixelBufferRef; use CoreVideo to access planes.
+// Called on the GLib thread.
+typedef void (*SpiceBridgeVideoFrameCallback)(void *context, void *cv_pixel_buffer);
+
 // Callbacks configuration struct
 typedef struct {
     void *context; // Opaque pointer to Swift object (Unmanaged<T>.toOpaque())
@@ -83,6 +88,7 @@ typedef struct {
     SpiceBridgePlaybackStopCallback  on_playback_stop;
     SpiceBridgeRecordStartCallback   on_record_start;
     SpiceBridgeRecordStopCallback    on_record_stop;
+    SpiceBridgeVideoFrameCallback    on_video_frame;
 } SpiceBridgeCallbacks;
 
 // Session lifecycle

@@ -56,3 +56,27 @@ fragment half4 fragmentShader(VertexOut in [[stage_in]],
                                       address::clamp_to_edge);
     return framebuffer.sample(textureSampler, uv);
 }
+
+// NV12 YUV→RGB fragment shader (BT.601 limited range, used for H.264/H.265 streams).
+// Texture 0: Y plane  (R8Unorm, full resolution luma)
+// Texture 1: UV plane (RG8Unorm, half-resolution chroma, Cb in R, Cr in G)
+fragment half4 yuvFragmentShader(VertexOut in [[stage_in]],
+                                  texture2d<half> y_tex  [[texture(0)]],
+                                  texture2d<half> uv_tex [[texture(1)]]) {
+    float2 uv = in.texCoord;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0)
+        return half4(0.0, 0.0, 0.0, 1.0);
+
+    constexpr sampler s(mag_filter::linear, min_filter::linear, address::clamp_to_edge);
+
+    // Y: limited range 16–235 → normalize to [0,1]
+    float y    = (float(y_tex.sample(s, uv).r)  - 16.0/255.0) * (255.0/219.0);
+    // CbCr: limited range 16–240 → shift to [-0.5, 0.5]
+    float2 cbcr = float2(uv_tex.sample(s, uv).rg) - float2(128.0/255.0);
+
+    float r = y + 1.402   * cbcr.y;
+    float g = y - 0.34414 * cbcr.x - 0.71414 * cbcr.y;
+    float b = y + 1.772   * cbcr.x;
+
+    return half4(half3(clamp(float3(r, g, b), 0.0, 1.0)), 1.0);
+}

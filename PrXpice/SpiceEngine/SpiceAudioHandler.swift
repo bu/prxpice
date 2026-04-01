@@ -1,9 +1,9 @@
 import Foundation
 import AVFoundation
-import CSpiceBridge
+import CoreMedia
 
 /// Handles SPICE audio: plays back VM audio via AVAudioEngine and captures
-/// iPad mic audio to send to the VM via the SPICE record channel.
+/// mic audio to send to the VM via the SPICE record channel.
 ///
 /// Threading rules:
 /// - AVAudioEngine graph setup (connect/disconnect) only happens on main thread,
@@ -11,8 +11,8 @@ import CSpiceBridge
 /// - AVAudioEngine.start() / playerNode.play/stop are called on main thread.
 /// - receivePlaybackData is called from GLib thread; playerNode.scheduleBuffer
 ///   is thread-safe. _activeFormat is guarded by formatLock.
-/// - Audio session is always .playAndRecord + .defaultToSpeaker so the category
-///   never changes while the engine is running (avoiding AVAudioEngineConfigurationChange).
+/// - Mic capture uses AVCaptureSession on all platforms so it never touches the
+///   AVAudioEngine graph, keeping playback and recording fully independent.
 final class SpiceAudioHandler {
     weak var sessionManager: SpiceSessionManager?
     var onLog: ((String) -> Void)?
@@ -20,13 +20,12 @@ final class SpiceAudioHandler {
     private let engine = AVAudioEngine()
     private let playerNode = AVAudioPlayerNode()
 
-    // The format the playerNode is currently connected with.
-    // Written on main thread only; read on main thread only.
+    // The format the playerNode is currently connected with (main thread only).
     private var connectedFormat: AVAudioFormat?
 
     // Active playback format — guards cross-thread access for receivePlaybackData.
     private let formatLock = NSLock()
-    private var _activeFormat: AVAudioFormat?   // set on main after engine ready
+    private var _activeFormat: AVAudioFormat?
     private var activeFormat: AVAudioFormat? {
         get { formatLock.lock(); defer { formatLock.unlock() }; return _activeFormat }
         set { formatLock.lock(); defer { formatLock.unlock() }; _activeFormat = newValue }
@@ -39,16 +38,38 @@ final class SpiceAudioHandler {
     private var pendingRecordChannels: Int32 = 0
     private var pendingRecordFreq: Int32 = 0
 
+    // Mic capture via AVCaptureSession — independent of AVAudioEngine
+    private var captureSession: AVCaptureSession?
+    private var captureDelegate: CaptureAudioDelegate?
+
     init() {
         engine.attach(playerNode)
-        // Pre-access inputNode so AVAudioEngine registers it in the internal
-        // graph before the engine ever starts.  Without this, touching
-        // inputNode for the first time while the engine is running triggers
-        // an engine reconfiguration that can crash (NSInternalInconsistencyException).
-        _ = engine.inputNode
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleEngineConfigChange),
+            name: .AVAudioEngineConfigurationChange,
+            object: engine)
     }
 
-    // MARK: - Playback (VM → iPad speaker)
+    @objc private func handleEngineConfigChange(_ notification: Notification) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.engineStarted else { return }
+            self.onLog?("Audio: engine config changed — restarting")
+            do {
+                try self.engine.start()
+                if self.activeFormat != nil && !self.playerNode.isPlaying {
+                    self.playerNode.play()
+                }
+                self.onLog?("Audio: engine restarted OK")
+            } catch {
+                self.engineStarted = false
+                self.activeFormat = nil
+                self.onLog?("Audio: engine restart failed: \(error)")
+            }
+        }
+    }
+
+    // MARK: - Playback (VM → speaker)
 
     func startPlayback(channels: Int32, freq: Int32) {
         DispatchQueue.main.async { [weak self] in
@@ -57,11 +78,9 @@ final class SpiceAudioHandler {
     }
 
     private func doStartPlayback(channels: Int32, freq: Int32) {
-        let ch  = max(Int(channels), 1)
-        let hz  = Double(max(freq, 1))
+        let ch = max(Int(channels), 1)
+        let hz = Double(max(freq, 1))
 
-        // Float32 non-interleaved — AVAudioPlayerNode's native format.
-        // AVAudioEngine routes this to hardware, inserting sample-rate conversion if needed.
         guard let swiftFmt = AVAudioFormat(standardFormatWithSampleRate: hz,
                                            channels: AVAudioChannelCount(ch)) else {
             onLog?("Audio: invalid format ch=\(channels) freq=\(freq)")
@@ -71,31 +90,27 @@ final class SpiceAudioHandler {
         let formatChanged = connectedFormat.map { $0 != swiftFmt } ?? true
 
         if formatChanged {
-            // Stop engine and tear down old graph before reconnecting.
             if engineStarted {
                 playerNode.stop()
                 engine.stop()
                 engineStarted = false
                 engine.disconnectNodeOutput(playerNode)
                 activeFormat = nil
-                // Stopping the engine removes any installed inputNode tap.
-                // Mark isRecording false so installMicTap can reinstall it below.
-                if isRecording {
-                    isRecording = false
-                }
+                if isRecording { isRecording = false }
             }
             engine.connect(playerNode, to: engine.mainMixerNode, format: swiftFmt)
             connectedFormat = swiftFmt
             onLog?("Audio: connected ch=\(ch) freq=\(Int(hz))")
         }
 
-        // Always .playAndRecord + .defaultToSpeaker so the category never needs to
-        // change when a record channel opens — prevents AVAudioEngineConfigurationChange.
         do {
             let s = AVAudioSession.sharedInstance()
-            try s.setCategory(.playAndRecord,
-                              mode: .default,
-                              options: [.defaultToSpeaker, .allowBluetooth])
+            #if targetEnvironment(macCatalyst)
+            try s.setCategory(.playAndRecord, mode: .default, options: [])
+            #else
+            try s.setCategory(.playAndRecord, mode: .default,
+                              options: [.defaultToSpeaker, .allowBluetoothHFP])
+            #endif
             try s.setActive(true)
         } catch {
             onLog?("Audio: session error: \(error)")
@@ -112,54 +127,41 @@ final class SpiceAudioHandler {
             }
         }
 
-        if !playerNode.isPlaying {
-            playerNode.play()
-        }
-
-        // Publish format to GLib thread after everything is ready
+        if !playerNode.isPlaying { playerNode.play() }
         activeFormat = swiftFmt
         onLog?("Audio: playback started ch=\(ch) freq=\(Int(hz))")
 
-        // If mic was active before a format-change engine restart, reinstall the tap.
-        if !isRecording && pendingRecordChannels > 0 {
+        if formatChanged && !isRecording && pendingRecordChannels > 0 {
             installMicTap(channels: pendingRecordChannels, freq: pendingRecordFreq)
         }
     }
 
     /// Called from GLib thread — scheduleBuffer is thread-safe.
-    /// Converts S16 interleaved PCM → Float32 non-interleaved and schedules it.
     func receivePlaybackData(_ data: UnsafePointer<UInt8>, size: Int32) {
         guard let fmt = activeFormat, size > 0 else { return }
 
-        let ch        = Int(fmt.channelCount)
-        let bytesPerFrame = ch * 2  // S16 = 2 bytes/sample
+        let ch = Int(fmt.channelCount)
+        let bytesPerFrame = ch * 2
         let numFrames = Int(size) / bytesPerFrame
         guard numFrames > 0 else { return }
 
-        // Copy raw bytes immediately — the C buffer is borrowed and may be
-        // reused by libspice after this callback returns.
         let safeSize = numFrames * bytesPerFrame
         let raw = Data(bytes: data, count: safeSize)
 
         guard let buf = AVAudioPCMBuffer(pcmFormat: fmt,
                                           frameCapacity: AVAudioFrameCount(numFrames)) else { return }
         buf.frameLength = AVAudioFrameCount(numFrames)
-
         guard let floatChannels = buf.floatChannelData else { return }
 
-        // S16 interleaved → Float32 non-interleaved conversion
         let scale = Float(1.0 / 32768.0)
         raw.withUnsafeBytes { rawBytes in
             guard let s16 = rawBytes.baseAddress?.assumingMemoryBound(to: Int16.self) else { return }
             for c in 0..<ch {
                 let dst = floatChannels[c]
-                for f in 0..<numFrames {
-                    dst[f] = Float(s16[f * ch + c]) * scale
-                }
+                for f in 0..<numFrames { dst[f] = Float(s16[f * ch + c]) * scale }
             }
         }
 
-        // Only schedule if player is still active
         guard playerNode.isPlaying else { return }
         playerNode.scheduleBuffer(buf)
     }
@@ -173,22 +175,32 @@ final class SpiceAudioHandler {
         }
     }
 
-    // MARK: - Record (iPad mic → VM)
+    // MARK: - Record (mic → VM)
 
     func startRecord(channels: Int32, freq: Int32) {
         onLog?("Audio: record-start ch=\(channels) freq=\(freq) — requesting mic permission")
-        let permissionHandler: (Bool) -> Void = { [weak self] granted in
-            guard let self = self else { return }
-            guard granted else {
-                self.onLog?("Audio: mic permission denied")
-                return
+        DispatchQueue.main.async { [weak self] in
+            let status = AVCaptureDevice.authorizationStatus(for: .audio)
+            switch status {
+            case .authorized:
+                self?.onLog?("Audio: mic access GRANTED")
+                self?.installMicTap(channels: channels, freq: freq)
+            case .notDetermined:
+                AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
+                    self?.onLog?("Audio: mic access \(granted ? "GRANTED" : "DENIED")")
+                    if granted {
+                        DispatchQueue.main.async { self?.installMicTap(channels: channels, freq: freq) }
+                    } else {
+                        self?.onLog?("Audio: mic permission denied — enable in Settings → Privacy → Microphone")
+                    }
+                }
+            default:
+                #if targetEnvironment(macCatalyst)
+                self?.onLog?("Audio: mic access DENIED — run: sqlite3 ~/Library/Application\\ Support/com.apple.TCC/TCC.db \"INSERT OR REPLACE INTO access VALUES('kTCCServiceMicrophone','com.Dn0w.PrXpice',0,2,2,1,NULL,NULL,0,'UNUSED',NULL,0,strftime('%s','now'),NULL,NULL,'UNUSED',0)\"")
+                #else
+                self?.onLog?("Audio: mic access DENIED — enable in Settings → Privacy → Microphone")
+                #endif
             }
-            DispatchQueue.main.async { self.installMicTap(channels: channels, freq: freq) }
-        }
-        if #available(iOS 17.0, *) {
-            AVAudioApplication.requestRecordPermission(completionHandler: permissionHandler)
-        } else {
-            AVAudioSession.sharedInstance().requestRecordPermission(permissionHandler)
         }
     }
 
@@ -198,37 +210,23 @@ final class SpiceAudioHandler {
             return
         }
 
-        // Ensure audio session and engine are running BEFORE reading the input
-        // node format — inputNode.outputFormat returns sampleRate=0 until the
-        // audio session is active and the engine has started.
-        if !engineStarted {
-            do {
-                let s = AVAudioSession.sharedInstance()
-                try s.setCategory(.playAndRecord, mode: .default,
-                                  options: [.defaultToSpeaker, .allowBluetooth])
-                try s.setActive(true)
-                try engine.start()
-                engineStarted = true
-                onLog?("Audio: engine started for mic-only (no playback yet)")
-            } catch {
-                onLog?("Audio: engine start for mic failed: \(error)")
-                return
-            }
-        }
-
-        let inputNode = engine.inputNode
-        let inputFmt  = inputNode.outputFormat(forBus: 0)
-
-        guard inputFmt.sampleRate > 0 else {
-            onLog?("Audio: mic input format invalid (sampleRate=0)")
-            return
-        }
         guard let targetFmt = AVAudioFormat(commonFormat: .pcmFormatInt16,
                                              sampleRate: Double(freq),
                                              channels: AVAudioChannelCount(channels),
-                                             interleaved: true),
-              let converter = AVAudioConverter(from: inputFmt, to: targetFmt) else {
-            onLog?("Audio: failed to create mic converter inputFmt=\(inputFmt) ch=\(channels) freq=\(freq)")
+                                             interleaved: true) else {
+            onLog?("Audio: failed to create target mic format ch=\(channels) freq=\(freq)")
+            return
+        }
+
+        guard let device = AVCaptureDevice.default(for: .audio) else {
+            onLog?("Audio: no capture device found")
+            return
+        }
+        let input: AVCaptureDeviceInput
+        do {
+            input = try AVCaptureDeviceInput(device: device)
+        } catch {
+            onLog?("Audio: capture input error: \(error)")
             return
         }
 
@@ -237,45 +235,154 @@ final class SpiceAudioHandler {
         recordStartTime = Date()
         isRecording = true
 
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFmt) { [weak self] inBuffer, _ in
+        let session = AVCaptureSession()
+        // Prevent AVCaptureSession from reconfiguring the audio session,
+        // which would reroute output and silence AVAudioEngine playback.
+        session.automaticallyConfiguresApplicationAudioSession = false
+        if session.canAddInput(input) { session.addInput(input) }
+
+        let audioOutput = AVCaptureAudioDataOutput()
+        let delegate = CaptureAudioDelegate(targetFmt: targetFmt,
+                                            onLog: { [weak self] msg in self?.onLog?(msg) },
+                                            onData: { [weak self] ptr, size in
             guard let self = self, let manager = self.sessionManager else { return }
+            let elapsed = UInt32((Date().timeIntervalSince(self.recordStartTime ?? Date())) * 1000)
+            manager.sendRecordData(ptr, size: size, timeMs: elapsed)
+        })
+        audioOutput.setSampleBufferDelegate(delegate, queue: DispatchQueue(label: "mic.capture"))
+        if session.canAddOutput(audioOutput) { session.addOutput(audioOutput) }
 
-            let outCapacity = AVAudioFrameCount(
-                Double(inBuffer.frameLength) * Double(freq) / inputFmt.sampleRate + 1
-            )
-            guard let outBuffer = AVAudioPCMBuffer(pcmFormat: targetFmt,
-                                                    frameCapacity: outCapacity) else { return }
-            var inputConsumed = false
-            var convError: NSError?
-            converter.convert(to: outBuffer, error: &convError) { _, status in
-                if inputConsumed { status.pointee = .noDataNow; return nil }
-                inputConsumed = true
-                status.pointee = .haveData
-                return inBuffer
-            }
-            guard convError == nil, outBuffer.frameLength > 0 else { return }
+        captureSession = session
+        captureDelegate = delegate
+        session.startRunning()
+        onLog?("Audio: mic capture started ch=\(channels) freq=\(freq)")
 
-            let byteCount = Int(outBuffer.frameLength) * Int(targetFmt.channelCount) * 2
-            let elapsedMs = UInt32((Date().timeIntervalSince(self.recordStartTime ?? Date())) * 1000)
-            outBuffer.int16ChannelData?[0].withMemoryRebound(to: UInt8.self, capacity: byteCount) { ptr in
-                manager.sendRecordData(ptr, size: byteCount, timeMs: elapsedMs)
+        // Some hardware disrupts the AVAudioEngine when capture starts.
+        // Check 150ms later and restart the engine if needed.
+        let wasPlayingFmt = activeFormat
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            guard let self = self, self.engineStarted, !self.engine.isRunning else { return }
+            self.onLog?("Audio: engine stopped by capture start — restarting")
+            do {
+                try self.engine.start()
+                if wasPlayingFmt != nil && !self.playerNode.isPlaying { self.playerNode.play() }
+                self.onLog?("Audio: engine restarted after capture start")
+            } catch {
+                self.onLog?("Audio: engine restart failed: \(error)")
             }
         }
-        onLog?("Audio: mic started ch=\(channels) freq=\(freq)")
     }
 
     func stopRecord() {
         DispatchQueue.main.async { [weak self] in
             guard let self = self, self.isRecording else { return }
-            self.engine.inputNode.removeTap(onBus: 0)
+            self.captureSession?.stopRunning()
+            self.captureSession = nil
+            self.captureDelegate = nil
             self.isRecording = false
             self.recordStartTime = nil
+            self.pendingRecordChannels = 0
+            self.pendingRecordFreq = 0
             self.onLog?("Audio: mic stopped")
         }
     }
 
     deinit {
-        if isRecording { engine.inputNode.removeTap(onBus: 0) }
+        captureSession?.stopRunning()
         if engineStarted { playerNode.stop(); engine.stop() }
+    }
+}
+
+// MARK: - AVCaptureAudioDataOutputSampleBufferDelegate
+
+private final class CaptureAudioDelegate: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate {
+    private let targetFmt: AVAudioFormat
+    private let onLog: (String) -> Void
+    private let onData: (UnsafePointer<UInt8>, Int) -> Void
+    private var converter: AVAudioConverter?
+    private var loggedFirst = false
+
+    init(targetFmt: AVAudioFormat,
+         onLog: @escaping (String) -> Void,
+         onData: @escaping (UnsafePointer<UInt8>, Int) -> Void) {
+        self.targetFmt = targetFmt
+        self.onLog = onLog
+        self.onData = onData
+    }
+
+    func captureOutput(_ output: AVCaptureOutput,
+                       didOutput sampleBuffer: CMSampleBuffer,
+                       from connection: AVCaptureConnection) {
+        guard let fmtDesc = CMSampleBufferGetFormatDescription(sampleBuffer),
+              let asbdPtr = CMAudioFormatDescriptionGetStreamBasicDescription(fmtDesc) else { return }
+        var asbd = asbdPtr.pointee
+        guard let srcFmt = AVAudioFormat(streamDescription: &asbd) else { return }
+
+        let numFrames = AVAudioFrameCount(CMSampleBufferGetNumSamples(sampleBuffer))
+        guard numFrames > 0 else { return }
+
+        if !loggedFirst {
+            loggedFirst = true
+            onLog("Audio: capture CB sr=\(srcFmt.sampleRate) ch=\(srcFmt.channelCount)")
+        }
+
+        if converter == nil {
+            converter = AVAudioConverter(from: srcFmt, to: targetFmt)
+            guard converter != nil else {
+                onLog("Audio: converter failed \(srcFmt.sampleRate)Hz->\(targetFmt.sampleRate)Hz")
+                return
+            }
+        }
+        guard let conv = converter else { return }
+
+        guard let blockBuf = CMSampleBufferGetDataBuffer(sampleBuffer) else { return }
+        var rawPtr: UnsafeMutablePointer<Int8>?
+        var totalLen = 0
+        CMBlockBufferGetDataPointer(blockBuf, atOffset: 0,
+                                    lengthAtOffsetOut: nil,
+                                    totalLengthOut: &totalLen,
+                                    dataPointerOut: &rawPtr)
+        guard let raw = rawPtr else { return }
+
+        guard let inBuf = AVAudioPCMBuffer(pcmFormat: srcFmt, frameCapacity: numFrames) else { return }
+        inBuf.frameLength = numFrames
+
+        let abl = inBuf.mutableAudioBufferList
+        let numBuffers = Int(abl.pointee.mNumberBuffers)
+        let firstBufPtr = withUnsafeMutablePointer(to: &abl.pointee.mBuffers) { $0 }
+        let buffers = UnsafeMutableBufferPointer<AudioBuffer>(start: firstBufPtr, count: numBuffers)
+        let bytesPerFrame = Int(asbd.mBytesPerFrame)
+        if srcFmt.isInterleaved || numBuffers == 1 {
+            if let dst = buffers[0].mData {
+                memcpy(dst, raw, min(Int(buffers[0].mDataByteSize), Int(numFrames) * bytesPerFrame))
+            }
+        } else {
+            let bytesPerChannel = numBuffers > 0 ? Int(numFrames) * bytesPerFrame / numBuffers : 0
+            for ch in 0..<numBuffers {
+                if let dst = buffers[ch].mData {
+                    memcpy(dst, UnsafeRawPointer(raw).advanced(by: ch * bytesPerChannel),
+                           min(Int(buffers[ch].mDataByteSize), bytesPerChannel))
+                }
+            }
+        }
+
+        let outCapacity = AVAudioFrameCount(
+            Double(numFrames) * Double(targetFmt.sampleRate) / srcFmt.sampleRate + 1
+        )
+        guard let outBuf = AVAudioPCMBuffer(pcmFormat: targetFmt, frameCapacity: outCapacity) else { return }
+        var inputConsumed = false
+        var convError: NSError?
+        conv.convert(to: outBuf, error: &convError) { _, status in
+            if inputConsumed { status.pointee = .noDataNow; return nil }
+            inputConsumed = true
+            status.pointee = .haveData
+            return inBuf
+        }
+        guard convError == nil, outBuf.frameLength > 0 else { return }
+
+        let byteCount = Int(outBuf.frameLength) * Int(targetFmt.channelCount) * 2
+        outBuf.int16ChannelData?[0].withMemoryRebound(to: UInt8.self, capacity: byteCount) { ptr in
+            onData(ptr, byteCount)
+        }
     }
 }

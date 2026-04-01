@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import UIKit
+import CoreVideo
 import CSpiceBridge
 
 /// Connection state published to the UI layer.
@@ -115,6 +116,12 @@ final class SpiceSessionManager: ObservableObject {
             guard let ctx = ctx else { return }
             let manager = Unmanaged<SpiceSessionManager>.fromOpaque(ctx).takeUnretainedValue()
             manager.audioHandler?.stopRecord()
+        }
+        callbacks.on_video_frame = { ctx, pixbuf in
+            guard let ctx = ctx, let pixbuf = pixbuf else { return }
+            let manager = Unmanaged<SpiceSessionManager>.fromOpaque(ctx).takeUnretainedValue()
+            let cvPixelBuffer = Unmanaged<CVPixelBuffer>.fromOpaque(pixbuf).takeUnretainedValue()
+            manager.displayHandler?.handleVideoFrame(cvPixelBuffer)
         }
 
         // Create session

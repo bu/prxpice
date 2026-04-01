@@ -1,4 +1,5 @@
 import Foundation
+import CoreVideo
 import CSpiceBridge
 
 /// Routes SPICE display callbacks to the MetalRenderer.
@@ -81,6 +82,10 @@ final class SpiceDisplayHandler {
             basePointer: basePointer,
             stride: surfaceStride
         )
+    }
+
+    func handleVideoFrame(_ pixelBuffer: CVPixelBuffer) {
+        renderer?.updateVideoTexture(pixelBuffer: pixelBuffer)
     }
 
     func handleDisplayDestroy(surfaceId: Int32) {

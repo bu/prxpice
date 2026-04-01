@@ -33,7 +33,14 @@
 
 #ifdef HAVE_SPICE
 #include <spice-client.h>
-#endif
+#ifdef __APPLE__
+#include <CoreVideo/CoreVideo.h>
+/* VideoToolbox per-channel callback registry (compiled into libspice-client-glib) */
+extern void vtb_register_video_callback(SpiceChannel *ch,
+    void (*cb)(CVImageBufferRef, void *), void *ctx);
+extern void vtb_unregister_video_callback(SpiceChannel *ch);
+#endif /* __APPLE__ */
+#endif /* HAVE_SPICE */
 
 // ---------------------------------------------------------------------------
 // Singleton shared GLib main loop — one thread runs g_main_loop_run on the
@@ -124,6 +131,15 @@ static void notify_state_change(SpiceBridgeSession *session, SpiceBridgeState ne
 
 #ifdef HAVE_SPICE
 
+#ifdef __APPLE__
+static void dispatch_video_frame(CVImageBufferRef pixbuf, void *ctx)
+{
+    SpiceBridgeSession *session = (SpiceBridgeSession *)ctx;
+    if (session->callbacks.on_video_frame)
+        session->callbacks.on_video_frame(session->callbacks.context, (void *)pixbuf);
+}
+#endif /* __APPLE__ */
+
 // Forward declarations
 static void on_channel_event(SpiceChannel *channel, SpiceChannelEvent event, gpointer user_data);
 static void on_display_primary_create(SpiceDisplayChannel *channel, gint format, gint width, gint height, gint stride, gint shmid, gpointer imgdata, gpointer user_data);
@@ -200,6 +216,9 @@ static void on_channel_new(SpiceSession *s, SpiceChannel *channel, gpointer user
         } else {
             DBLOG(session, "ch_new: preferred codecs: H264, H265, MJPEG");
         }
+#ifdef __APPLE__
+        vtb_register_video_callback(channel, dispatch_video_frame, session);
+#endif
     } else if (SPICE_IS_INPUTS_CHANNEL(channel)) {
         BLOG("on_channel_new: is inputs channel, connecting");
         session->inputs_channel = SPICE_INPUTS_CHANNEL(channel);
@@ -236,6 +255,9 @@ static void on_channel_destroy(SpiceSession *s, SpiceChannel *channel, gpointer 
         session->main_channel = NULL;
     } else if (SPICE_IS_DISPLAY_CHANNEL(channel)) {
         session->display_channel = NULL;
+#ifdef __APPLE__
+        vtb_unregister_video_callback(channel);
+#endif
     } else if (SPICE_IS_INPUTS_CHANNEL(channel)) {
         session->inputs_channel = NULL;
     } else if (SPICE_IS_PLAYBACK_CHANNEL(channel)) {

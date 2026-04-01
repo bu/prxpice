@@ -32,6 +32,64 @@ VideoDecoder *create_gstreamer_decoder(int codec_type, display_stream *stream)
 #include <VideoToolbox/VideoToolbox.h>
 #include <CoreMedia/CoreMedia.h>
 #include <CoreVideo/CoreVideo.h>
+#include <pthread.h>
+
+/* ============================================================
+ * Per-channel video frame callback registry
+ * ============================================================ */
+
+typedef struct {
+    SpiceChannel *channel;
+    void (*cb)(CVImageBufferRef pixbuf, void *ctx);
+    void *ctx;
+} VtbCbEntry;
+#define VTB_MAX_CB 8
+static VtbCbEntry      s_vtb_cb[VTB_MAX_CB];
+static int             s_vtb_cb_count = 0;
+static pthread_mutex_t s_vtb_cb_mu    = PTHREAD_MUTEX_INITIALIZER;
+
+void vtb_register_video_callback(SpiceChannel *ch,
+                                  void (*cb)(CVImageBufferRef, void *), void *ctx)
+{
+    pthread_mutex_lock(&s_vtb_cb_mu);
+    for (int i = 0; i < s_vtb_cb_count; i++) {
+        if (s_vtb_cb[i].channel == ch) {
+            s_vtb_cb[i].cb = cb; s_vtb_cb[i].ctx = ctx;
+            pthread_mutex_unlock(&s_vtb_cb_mu); return;
+        }
+    }
+    if (s_vtb_cb_count < VTB_MAX_CB) {
+        s_vtb_cb[s_vtb_cb_count++] = (VtbCbEntry){ ch, cb, ctx };
+    }
+    pthread_mutex_unlock(&s_vtb_cb_mu);
+}
+
+void vtb_unregister_video_callback(SpiceChannel *ch)
+{
+    pthread_mutex_lock(&s_vtb_cb_mu);
+    for (int i = 0; i < s_vtb_cb_count; i++) {
+        if (s_vtb_cb[i].channel == ch) {
+            s_vtb_cb[i] = s_vtb_cb[--s_vtb_cb_count];
+            break;
+        }
+    }
+    pthread_mutex_unlock(&s_vtb_cb_mu);
+}
+
+static void vtb_call_video_callback(SpiceChannel *ch, CVImageBufferRef pixbuf)
+{
+    pthread_mutex_lock(&s_vtb_cb_mu);
+    for (int i = 0; i < s_vtb_cb_count; i++) {
+        if (s_vtb_cb[i].channel == ch) {
+            void (*cb)(CVImageBufferRef, void*) = s_vtb_cb[i].cb;
+            void *ctx = s_vtb_cb[i].ctx;
+            pthread_mutex_unlock(&s_vtb_cb_mu);
+            cb(pixbuf, ctx);
+            return;
+        }
+    }
+    pthread_mutex_unlock(&s_vtb_cb_mu);
+}
 
 /* ============================================================
  * Annex-B byte-stream NAL unit parsing
@@ -187,7 +245,11 @@ typedef struct VtbDecoder {
     CMVideoFormatDescriptionRef fmt_desc;
     VTDecompressionSessionRef   session;
 
-    /* Output scratch buffer (BGRA) filled by the decode callback */
+    /* NV12 fast path: retained CVPixelBuffer from decode callback */
+    gboolean          use_nv12;
+    CVImageBufferRef  decoded_pixbuf;   /* retained; NULL if not decoded yet */
+
+    /* BGRA fallback: scratch buffer filled by the decode callback */
     uint8_t  *out_frame;
     uint32_t  out_frame_size;
     uint32_t  out_width;
@@ -222,31 +284,38 @@ static void vtb_decode_callback(void *decomp_ref,
         return;
     }
 
-    CVPixelBufferLockBaseAddress(image_buf, kCVPixelBufferLock_ReadOnly);
+    if (decoder->use_nv12) {
+        /* NV12 fast path: retain the CVPixelBuffer, hand to GLib thread */
+        if (decoder->decoded_pixbuf) CVPixelBufferRelease(decoder->decoded_pixbuf);
+        decoder->decoded_pixbuf = (CVImageBufferRef)CVPixelBufferRetain(image_buf);
+        decoder->decode_ok = TRUE;
+    } else {
+        /* BGRA fallback: existing row-by-row memcpy */
+        CVPixelBufferLockBaseAddress(image_buf, kCVPixelBufferLock_ReadOnly);
 
-    uint32_t width  = (uint32_t)CVPixelBufferGetWidth(image_buf);
-    uint32_t height = (uint32_t)CVPixelBufferGetHeight(image_buf);
-    size_t   stride = CVPixelBufferGetBytesPerRow(image_buf);
-    uint8_t *src    = (uint8_t *)CVPixelBufferGetBaseAddress(image_buf);
+        uint32_t width  = (uint32_t)CVPixelBufferGetWidth(image_buf);
+        uint32_t height = (uint32_t)CVPixelBufferGetHeight(image_buf);
+        size_t   stride = CVPixelBufferGetBytesPerRow(image_buf);
+        uint8_t *src    = (uint8_t *)CVPixelBufferGetBaseAddress(image_buf);
 
-    uint32_t needed = width * height * 4;
-    if (needed > decoder->out_frame_size) {
-        g_free(decoder->out_frame);
-        decoder->out_frame      = g_malloc(needed);
-        decoder->out_frame_size = needed;
+        uint32_t needed = width * height * 4;
+        if (needed > decoder->out_frame_size) {
+            g_free(decoder->out_frame);
+            decoder->out_frame      = g_malloc(needed);
+            decoder->out_frame_size = needed;
+        }
+
+        uint8_t *dst = decoder->out_frame;
+        for (uint32_t y = 0; y < height; y++) {
+            memcpy(dst + y * width * 4, src + y * stride, width * 4);
+        }
+
+        CVPixelBufferUnlockBaseAddress(image_buf, kCVPixelBufferLock_ReadOnly);
+
+        decoder->out_width  = width;
+        decoder->out_height = height;
+        decoder->decode_ok  = TRUE;
     }
-
-    /* Copy row-by-row (CVPixelBuffer stride may be padded) */
-    uint8_t *dst = decoder->out_frame;
-    for (uint32_t y = 0; y < height; y++) {
-        memcpy(dst + y * width * 4, src + y * stride, width * 4);
-    }
-
-    CVPixelBufferUnlockBaseAddress(image_buf, kCVPixelBufferLock_ReadOnly);
-
-    decoder->out_width  = width;
-    decoder->out_height = height;
-    decoder->decode_ok  = TRUE;
 }
 
 /* ============================================================
@@ -304,12 +373,22 @@ static gboolean vtb_create_session(VtbDecoder *decoder)
         return FALSE;
     }
 
-    /* Request BGRA output to match the SPICE surface format */
+    /* Check if a video callback is registered → use NV12 zero-copy fast path */
+    gboolean has_cb = FALSE;
+    pthread_mutex_lock(&s_vtb_cb_mu);
+    for (int i = 0; i < s_vtb_cb_count; i++) {
+        if (s_vtb_cb[i].channel == decoder->base.stream->channel) { has_cb = TRUE; break; }
+    }
+    pthread_mutex_unlock(&s_vtb_cb_mu);
+    decoder->use_nv12 = has_cb;
+
     CFMutableDictionaryRef pb_attrs = CFDictionaryCreateMutable(
         kCFAllocatorDefault, 1,
         &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
 
-    SInt32 fmt_val = kCVPixelFormatType_32BGRA;
+    SInt32 fmt_val = has_cb
+        ? kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange   /* NV12 fast path */
+        : kCVPixelFormatType_32BGRA;                        /* BGRA fallback  */
     CFNumberRef fmt_num = CFNumberCreate(kCFAllocatorDefault,
                                          kCFNumberSInt32Type, &fmt_val);
     CFDictionarySetValue(pb_attrs, kCVPixelBufferPixelFormatTypeKey, fmt_num);
@@ -497,17 +576,19 @@ static void vtb_decode_frame(VtbDecoder *decoder, SpiceFrame *frame)
 
     VTDecompressionSessionWaitForAsynchronousFrames(decoder->session);
 
-    if (!decoder->decode_ok) {
+    if (decoder->use_nv12 && decoder->decoded_pixbuf) {
+        /* Fast path: call Swift callback directly with CVPixelBuffer */
+        vtb_call_video_callback(decoder->base.stream->channel, decoder->decoded_pixbuf);
+        CVPixelBufferRelease(decoder->decoded_pixbuf);
+        decoder->decoded_pixbuf = NULL;
+    } else if (!decoder->use_nv12 && decoder->decode_ok) {
+        /* Fallback: existing BGRA path via stream_display_frame */
+        stream_display_frame(decoder->base.stream, frame,
+                             decoder->out_width, decoder->out_height,
+                             SPICE_UNKNOWN_STRIDE, decoder->out_frame);
+    } else {
         SPICE_DEBUG("VTB: callback reported decode failure");
-        return;
     }
-
-    /* Hand decoded BGRA pixels to the SPICE display pipeline.
-     * stream_display_frame() composites into the primary surface and emits
-     * display-invalidate, which propagates to our Metal texture update. */
-    stream_display_frame(decoder->base.stream, frame,
-                         decoder->out_width, decoder->out_height,
-                         SPICE_UNKNOWN_STRIDE, decoder->out_frame);
 }
 
 /* ============================================================
@@ -615,6 +696,11 @@ static void vtb_decoder_destroy(VideoDecoder *video_decoder)
     }
     if (decoder->fmt_desc) {
         CFRelease(decoder->fmt_desc);
+    }
+
+    if (decoder->decoded_pixbuf) {
+        CVPixelBufferRelease(decoder->decoded_pixbuf);
+        decoder->decoded_pixbuf = NULL;
     }
 
     g_free(decoder->sps);

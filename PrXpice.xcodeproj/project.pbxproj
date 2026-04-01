@@ -41,6 +41,7 @@
 		A100000032 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100000041 /* MetalKit.framework */; };
 		A100000033 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B100000042 /* Security.framework */; };
 		A100000034 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B100000043 /* Assets.xcassets */; };
+		A100000050 /* AudioTapHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = B100000070 /* AudioTapHelper.m */; };
 		A100000060 /* VMSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000060 /* VMSession.swift */; };
 		A100000061 /* MultiVMContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000061 /* MultiVMContainerView.swift */; };
 		A100000062 /* VMSoftKeyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000062 /* VMSoftKeyboard.swift */; };
@@ -83,19 +84,21 @@
 		B100000031 /* spice_bridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = spice_bridge.h; sourceTree = "<group>"; };
 		B100000032 /* module.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = module.modulemap; sourceTree = "<group>"; };
 		B100000033 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		B100000050 /* PrXpice.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PrXpice.entitlements; sourceTree = "<group>"; };
-		B100000051 /* PrXpice-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "PrXpice-macOS.entitlements"; sourceTree = "<group>"; };
 		B100000039 /* PrXpice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PrXpice.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B100000040 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
 		B100000041 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 		B100000042 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		B100000043 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B100000050 /* PrXpice.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PrXpice.entitlements; sourceTree = "<group>"; };
+		B100000051 /* PrXpice-macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "PrXpice-macOS.entitlements"; sourceTree = "<group>"; };
 		B100000060 /* VMSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMSession.swift; sourceTree = "<group>"; };
 		B100000061 /* MultiVMContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiVMContainerView.swift; sourceTree = "<group>"; };
 		B100000062 /* VMSoftKeyboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VMSoftKeyboard.swift; sourceTree = "<group>"; };
 		B100000063 /* KeyboardAccessoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardAccessoryView.swift; sourceTree = "<group>"; };
 		B100000064 /* CrashLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashLogger.swift; sourceTree = "<group>"; };
 		B100000065 /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
+		B100000070 /* AudioTapHelper.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AudioTapHelper.m; sourceTree = "<group>"; };
+		B100000071 /* AudioTapHelper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AudioTapHelper.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -261,6 +264,7 @@
 			isa = PBXGroup;
 			children = (
 				B100000031 /* spice_bridge.h */,
+				B100000071 /* AudioTapHelper.h */,
 				B100000032 /* module.modulemap */,
 			);
 			path = include;
@@ -270,6 +274,7 @@
 			isa = PBXGroup;
 			children = (
 				B100000030 /* spice_bridge.c */,
+				B100000070 /* AudioTapHelper.m */,
 			);
 			path = src;
 			sourceTree = "<group>";
@@ -392,6 +397,7 @@
 				A100000029 /* Logger.swift in Sources */,
 				A100000064 /* CrashLogger.swift in Sources */,
 				A100000030 /* spice_bridge.c in Sources */,
+				A100000050 /* AudioTapHelper.m in Sources */,
 				A100000060 /* VMSession.swift in Sources */,
 				A100000065 /* SessionStore.swift in Sources */,
 				A100000061 /* MultiVMContainerView.swift in Sources */,
@@ -515,10 +521,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD)";
-				"ARCHS[sdk=macosx*]" = x86_64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
-				CODE_SIGN_ENTITLEMENTS = "PrXpice/App/PrXpice.entitlements";
+				CODE_SIGN_ENTITLEMENTS = PrXpice/App/PrXpice.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "PrXpice/App/PrXpice-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -549,7 +554,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "$(VENDOR_DIR)/lib";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				OTHER_LDFLAGS = (
 					"-lspice-client-glib-2.0",
 					"-lglib-2.0",
@@ -595,11 +600,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = "$(ARCHS_STANDARD)";
-				"ARCHS[sdk=macosx*]" = x86_64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
-				CODE_SIGN_ENTITLEMENTS = "PrXpice/App/PrXpice.entitlements";
+				CODE_SIGN_ENTITLEMENTS = PrXpice/App/PrXpice.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "PrXpice/App/PrXpice-macOS.entitlements";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -628,7 +633,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "$(VENDOR_DIR)/lib";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				OTHER_LDFLAGS = (
 					"-lspice-client-glib-2.0",
 					"-lglib-2.0",

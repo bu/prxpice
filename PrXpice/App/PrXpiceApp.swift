@@ -1,4 +1,5 @@
 import SwiftUI
+import CSpiceBridge
 
 @main
 struct PrXpiceApp: App {
@@ -15,6 +16,16 @@ struct PrXpiceApp: App {
             ConnectionListView()
                 .environmentObject(connectionStore)
                 .environmentObject(sessionStore)
+                #if targetEnvironment(macCatalyst)
+                .onAppear {
+                    // Enter true macOS full screen via NSApplication.sharedApplication.
+                    // UIKit responder-chain toggleFullScreen: only zooms the window.
+                    // EnterFullScreen() is implemented in AudioTapHelper.m with AppKit access.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        EnterFullScreen()
+                    }
+                }
+                #endif
         }
     }
 }

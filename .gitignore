@@ -34,3 +34,6 @@ fastlane/test_output
 .env
 .env.*
 secrets.json
+
+# Claude memory (local only, symlinked from ~/.claude/projects/...)
+.claude-memory/

@@ -32,6 +32,9 @@ struct ConnectionListView: View {
                         Image(systemName: "gear")
                     }
                 }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    EditButton()
+                }
                 if !sessionStore.sessions.isEmpty {
                     ToolbarItem(placement: .bottomBar) {
                         Button {
@@ -78,24 +81,37 @@ struct ConnectionListView: View {
     private var connectionList: some View {
         List {
             ForEach(connectionStore.connections) { connection in
-                Button {
-                    selectedConnection = connection
-                } label: {
-                    ConnectionRow(connection: connection)
-                }
-                .swipeActions(edge: .trailing) {
-                    Button(role: .destructive) {
-                        connectionStore.delete(connection)
-                    } label: {
-                        Label("Delete", systemImage: "trash")
+                ConnectionRow(connection: connection)
+                    .contentShape(Rectangle())
+                    .onTapGesture { selectedConnection = connection }
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            connectionStore.delete(connection)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                        Button {
+                            editingConnection = connection
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        .tint(.orange)
                     }
-                    Button {
-                        editingConnection = connection
-                    } label: {
-                        Label("Edit", systemImage: "pencil")
+                    .contextMenu {
+                        Button {
+                            editingConnection = connection
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            connectionStore.delete(connection)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
                     }
-                    .tint(.orange)
-                }
+            }
+            .onDelete { indices in
+                indices.forEach { connectionStore.delete(connectionStore.connections[$0]) }
             }
             .onMove { source, destination in
                 connectionStore.move(from: source, to: destination)
