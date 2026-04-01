@@ -8,13 +8,11 @@ final class GLibRunLoopIntegration {
     private var thread: Thread?
     private var isRunning = false
     private let exitSemaphore = DispatchSemaphore(value: 0)
-    private var started = false
 
     /// Starts the GLib main loop on a dedicated background thread.
     func start(session: OpaquePointer) {
         guard !isRunning else { return }
         isRunning = true
-        started = true
 
         let sessionPtr = session
         thread = Thread { [weak self] in
@@ -35,7 +33,7 @@ final class GLibRunLoopIntegration {
         guard isRunning else { return }
         isRunning = false
         spice_bridge_quit_loop(session)
-        if started {
+        if thread != nil {
             _ = exitSemaphore.wait(timeout: .now() + 5.0)
         }
         thread = nil
