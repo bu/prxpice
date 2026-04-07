@@ -96,25 +96,28 @@ final class SpiceAudioHandler {
                 engineStarted = false
                 engine.disconnectNodeOutput(playerNode)
                 activeFormat = nil
-                if isRecording { isRecording = false }
+                if isRecording {
+                    captureSession?.stopRunning()
+                    captureSession = nil
+                    captureDelegate = nil
+                    isRecording = false
+                }
             }
             engine.connect(playerNode, to: engine.mainMixerNode, format: swiftFmt)
             connectedFormat = swiftFmt
             onLog?("Audio: connected ch=\(ch) freq=\(Int(hz))")
         }
 
+        #if !targetEnvironment(macCatalyst)
         do {
             let s = AVAudioSession.sharedInstance()
-            #if targetEnvironment(macCatalyst)
-            try s.setCategory(.playAndRecord, mode: .default, options: [])
-            #else
             try s.setCategory(.playAndRecord, mode: .default,
                               options: [.defaultToSpeaker, .allowBluetoothHFP])
-            #endif
             try s.setActive(true)
         } catch {
             onLog?("Audio: session error: \(error)")
         }
+        #endif
 
         if !engineStarted {
             do {
@@ -238,7 +241,10 @@ final class SpiceAudioHandler {
         let session = AVCaptureSession()
         // Prevent AVCaptureSession from reconfiguring the audio session,
         // which would reroute output and silence AVAudioEngine playback.
+        // Not needed on macOS — AVCaptureSession never reroutes audio there.
+        #if !targetEnvironment(macCatalyst)
         session.automaticallyConfiguresApplicationAudioSession = false
+        #endif
         if session.canAddInput(input) { session.addInput(input) }
 
         let audioOutput = AVCaptureAudioDataOutput()
@@ -357,7 +363,7 @@ private final class CaptureAudioDelegate: NSObject, AVCaptureAudioDataOutputSamp
                 memcpy(dst, raw, min(Int(buffers[0].mDataByteSize), Int(numFrames) * bytesPerFrame))
             }
         } else {
-            let bytesPerChannel = numBuffers > 0 ? Int(numFrames) * bytesPerFrame / numBuffers : 0
+            let bytesPerChannel = Int(numFrames) * bytesPerFrame
             for ch in 0..<numBuffers {
                 if let dst = buffers[ch].mData {
                     memcpy(dst, UnsafeRawPointer(raw).advanced(by: ch * bytesPerChannel),

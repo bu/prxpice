@@ -2,9 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Sandbox removed for local/dev builds: adhoc-signed sandboxed apps have
-	     their TCC microphone requests silently dropped by macOS. The sandbox is
-	     re-enabled for App Store distribution (signed with a real certificate). -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
 	<key>com.apple.security.network.client</key>
 	<true/>
 	<key>com.apple.security.network.server</key>
