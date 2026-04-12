@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Support – PrXpice</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #1d1d1f;
+      --muted: #6e6e73;
+      --accent: #0066cc;
+      --border: #d2d2d7;
+      --card-bg: #f5f5f7;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #000000;
+        --text: #f5f5f7;
+        --muted: #86868b;
+        --accent: #2997ff;
+        --border: #2d2d2f;
+        --card-bg: #1c1c1e;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    header {
+      text-align: center;
+      padding: 60px 24px 40px;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 { font-size: 36px; font-weight: 700; letter-spacing: -0.5px; }
+    header p { font-size: 17px; color: var(--muted); margin-top: 8px; }
+    header a {
+      display: inline-block;
+      margin-top: 20px;
+      font-size: 14px;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    header a:hover { text-decoration: underline; }
+    .content {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 48px 24px 64px;
+    }
+    .section { margin-bottom: 48px; }
+    .section h2 {
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .contact-card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .contact-icon { font-size: 32px; flex-shrink: 0; }
+    .contact-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .contact-card p { font-size: 14px; color: var(--muted); }
+    .contact-card a { color: var(--accent); text-decoration: none; }
+    .contact-card a:hover { text-decoration: underline; }
+    .faq-item { margin-bottom: 24px; }
+    .faq-item h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+    .faq-item p { font-size: 14px; color: var(--muted); }
+    .faq-item code {
+      background: var(--card-bg);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-family: ui-monospace, monospace;
+      font-size: 13px;
+    }
+    footer {
+      text-align: center;
+      padding: 32px 24px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>PrXpice Support</h1>
+    <p>iOS &amp; macOS SPICE Client for Proxmox VE</p>
+    <a href="index.html">← Back to Home</a>
+  </header>
+
+  <div class="content">
+
+    <div class="section">
+      <h2>Contact &amp; Bug Reports</h2>
+      <div class="contact-card">
+        <div class="contact-icon">🐛</div>
+        <div>
+          <h3>GitHub Issues</h3>
+          <p>Report bugs, request features, or ask questions on our GitHub issue tracker.<br>
+          <a href="https://github.com/Dn0w/PrXpice/issues" target="_blank">github.com/Dn0w/PrXpice/issues</a></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Frequently Asked Questions</h2>
+
+      <div class="faq-item">
+        <h3>What Proxmox version is required?</h3>
+        <p>Proxmox VE 7.0 or later. The VM must have a SPICE display configured (not VNC).</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>How do I enable SPICE on my VM?</h3>
+        <p>In Proxmox VE, go to your VM → Hardware → Display → change the type to <code>SPICE</code>. Then start the VM and use the SPICE proxy address and port shown in the console tab.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>The screen is black after connecting.</h3>
+        <p>Make sure the VM is fully booted and the guest OS has loaded its display driver. Try disconnecting and reconnecting. If the issue persists, check that the SPICE port is reachable from your device.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>Audio is not working.</h3>
+        <p>Ensure the VM has audio hardware configured in Proxmox and the guest OS has audio drivers installed. On iOS, make sure the app has microphone permission if you want two-way audio (VM sound → speakers, mic → VM).</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>How do I send Ctrl+Alt+Delete to the VM?</h3>
+        <p>Open the gear menu (⚙) in the top-right of the display and tap <strong>Send Ctrl+Alt+Del</strong>.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>The app says "Connection failed".</h3>
+        <p>Check that the SPICE host and port are correct, your device is on the same network as the Proxmox server (or connected via VPN), and the firewall allows the SPICE port (default <code>5900–5999</code>).</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>Is my data private?</h3>
+        <p>Yes. PrXpice contains no analytics or tracking. All connection data is stored locally on your device and communicated only with your own Proxmox server.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    &copy; 2026 Damian Lee &mdash;
+    <a href="index.html">Home</a> &middot;
+    <a href="privacy.html">Privacy Policy</a> &middot;
+    <a href="license.html">License</a> &middot;
+    <a href="https://github.com/Dn0w/PrXpice">GitHub</a>
+  </footer>
+</body>
+</html>
