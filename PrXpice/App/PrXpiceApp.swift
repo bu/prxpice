@@ -5,6 +5,7 @@ import CSpiceBridge
 struct PrXpiceApp: App {
     @StateObject private var connectionStore = ConnectionStore()
     @StateObject private var sessionStore = SessionStore()
+    @StateObject private var subscriptionManager = SubscriptionManager.shared
 
     init() {
         CrashLogger.install()
@@ -16,6 +17,7 @@ struct PrXpiceApp: App {
             ConnectionListView()
                 .environmentObject(connectionStore)
                 .environmentObject(sessionStore)
+                .environmentObject(subscriptionManager)
                 #if targetEnvironment(macCatalyst)
                 .onAppear {
                     // Enter true macOS full screen via NSApplication.sharedApplication.

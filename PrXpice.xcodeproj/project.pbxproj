@@ -48,6 +48,8 @@
 		A100000063 /* KeyboardAccessoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000063 /* KeyboardAccessoryView.swift */; };
 		A100000064 /* CrashLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000064 /* CrashLogger.swift */; };
 		A100000065 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000065 /* SessionStore.swift */; };
+		A100000080 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000080 /* PaywallView.swift */; };
+		A100000081 /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000081 /* SubscriptionManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -99,6 +101,8 @@
 		B100000065 /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		B100000070 /* AudioTapHelper.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AudioTapHelper.m; sourceTree = "<group>"; };
 		B100000071 /* AudioTapHelper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AudioTapHelper.h; sourceTree = "<group>"; };
+		B100000080 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
+		B100000081 /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -138,6 +142,7 @@
 				D100000010 /* Input */,
 				D100000011 /* Persistence */,
 				D100000012 /* Utilities */,
+				D100000013 /* Subscription */,
 			);
 			path = PrXpice;
 			sourceTree = "<group>";
@@ -175,6 +180,7 @@
 				B100000008 /* VMDisplayView.swift */,
 				B100000009 /* SettingsView.swift */,
 				B100000061 /* MultiVMContainerView.swift */,
+				B100000080 /* PaywallView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -249,6 +255,14 @@
 				B100000064 /* CrashLogger.swift */,
 			);
 			path = Utilities;
+			sourceTree = "<group>";
+		};
+		D100000013 /* Subscription */ = {
+			isa = PBXGroup;
+			children = (
+				B100000081 /* SubscriptionManager.swift */,
+			);
+			path = Subscription;
 			sourceTree = "<group>";
 		};
 		D100000020 /* CSpiceBridge */ = {
@@ -403,6 +417,8 @@
 				A100000061 /* MultiVMContainerView.swift in Sources */,
 				A100000062 /* VMSoftKeyboard.swift in Sources */,
 				A100000063 /* KeyboardAccessoryView.swift in Sources */,
+				A100000080 /* PaywallView.swift in Sources */,
+				A100000081 /* SubscriptionManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -554,7 +570,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "$(VENDOR_DIR)/lib";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.5;
+				MARKETING_VERSION = 1.0.6;
 				OTHER_LDFLAGS = (
 					"-lspice-client-glib-2.0",
 					"-lglib-2.0",
@@ -633,7 +649,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "$(VENDOR_DIR)/lib";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.5;
+				MARKETING_VERSION = 1.0.6;
 				OTHER_LDFLAGS = (
 					"-lspice-client-glib-2.0",
 					"-lglib-2.0",

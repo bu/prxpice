@@ -5,8 +5,10 @@ struct VMListView: View {
     let connectionStore: ConnectionStore
 
     @EnvironmentObject private var sessionStore: SessionStore
+    @EnvironmentObject private var subscriptionManager: SubscriptionManager
     @StateObject private var viewModel: VMListViewModel
     @State private var isConnecting = false
+    @State private var showPaywall = false
 
     init(connection: ServerConnection, connectionStore: ConnectionStore) {
         self.connection = connection
@@ -46,6 +48,9 @@ struct VMListView: View {
         }
         .task {
             await viewModel.authenticate()
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView()
         }
     }
 
@@ -90,6 +95,10 @@ struct VMListView: View {
     }
 
     private func connectToVM(_ vm: VMInfo) {
+        guard subscriptionManager.isSubscribed else {
+            showPaywall = true
+            return
+        }
         // If already open, switch to it
         if let existingIndex = sessionStore.sessions.firstIndex(where: { $0.vm.vmid == vm.vmid && $0.vm.node == vm.node }) {
             sessionStore.activeSessionIndex = existingIndex
