@@ -18,6 +18,7 @@
 #include <pthread.h>
 #include <os/log.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
@@ -26,6 +27,7 @@
 #include <netdb.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <TargetConditionals.h>
 
 #define BLOG(fmt, ...) do { \
     os_log(OS_LOG_DEFAULT, "[SpiceBridge] " fmt, ##__VA_ARGS__); \
@@ -100,7 +102,16 @@ struct SpiceBridgeSession {
 
     // TLS relay — bypasses GIO's missing TLS backend (GDummyTlsBackend)
     int relay_listen_fd;   // local loopback listener (-1 = unused)
-    int relay_running;     // 1 while relay accept loop is active
+    int relay_running;     // 1 while relay workers are active
+
+    // macOS Catalyst: socketpair + open-fd relay (no bind/listen needed)
+    int  relay_main_fd;        // fds[0] for main channel; -1 = not in use
+    int  relay_use_open_fd;    // 1 = use socketpair for non-main channels
+    char relay_host[256];
+    int  relay_tls_port;
+    char relay_proxy_host[256];
+    int  relay_proxy_port;
+    int  relay_has_proxy;
 };
 
 // Route a debug message to the Swift debug callback
@@ -141,6 +152,7 @@ static void dispatch_video_frame(CVImageBufferRef pixbuf, void *ctx)
 #endif /* __APPLE__ */
 
 // Forward declarations
+static void on_channel_open_fd(SpiceChannel *channel, int with_tls, gpointer user_data);
 static void on_channel_event(SpiceChannel *channel, SpiceChannelEvent event, gpointer user_data);
 static void on_display_primary_create(SpiceDisplayChannel *channel, gint format, gint width, gint height, gint stride, gint shmid, gpointer imgdata, gpointer user_data);
 static void on_display_invalidate(SpiceDisplayChannel *channel, gint x, gint y, gint w, gint h, gpointer user_data);
@@ -182,6 +194,11 @@ static void on_channel_new(SpiceSession *s, SpiceChannel *channel, gpointer user
 
     // Always watch channel events so we see connect/error on every channel
     g_signal_connect(channel, "channel-event", G_CALLBACK(on_channel_event), session);
+
+    // macOS: non-main channels get a socketpair+relay via the open-fd signal
+    if (session->relay_use_open_fd && !SPICE_IS_MAIN_CHANNEL(channel)) {
+        g_signal_connect(channel, "open-fd", G_CALLBACK(on_channel_open_fd), session);
+    }
 
     if (SPICE_IS_MAIN_CHANNEL(channel)) {
         DBLOG(session, "ch_new: main channel, connecting");
@@ -619,6 +636,50 @@ static void *tls_relay_thread(void *arg) {
     return NULL;
 }
 
+// macOS Catalyst: called when spice-glib needs a fd for a non-main channel.
+// Creates a socketpair; gives one end to spice-glib, runs a TLS relay worker
+// on the other end.  No bind/listen required — safe inside macOS App Sandbox.
+#ifdef HAVE_SPICE
+static void on_channel_open_fd(SpiceChannel *channel, int with_tls, gpointer user_data) {
+    SpiceBridgeSession *session = (SpiceBridgeSession *)user_data;
+    DBLOG(session, "open-fd: %s with_tls=%d",
+          g_type_name(G_TYPE_FROM_INSTANCE(channel)), with_tls);
+
+    int fds[2];
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, fds) < 0) {
+        DBLOG(session, "open-fd: socketpair failed errno=%d", errno);
+        spice_channel_open_fd(channel, -1);
+        return;
+    }
+
+    TlsRelayArgs *wa = calloc(1, sizeof(TlsRelayArgs));
+    if (!wa) {
+        close(fds[0]); close(fds[1]);
+        spice_channel_open_fd(channel, -1);
+        return;
+    }
+    wa->session       = session;
+    wa->real_tls_port = session->relay_tls_port;
+    wa->has_proxy     = session->relay_has_proxy;
+    wa->client_fd     = fds[1];
+    strncpy(wa->real_host,   session->relay_host,       sizeof(wa->real_host)       - 1);
+    strncpy(wa->proxy_host,  session->relay_proxy_host, sizeof(wa->proxy_host)      - 1);
+    wa->proxy_port = session->relay_proxy_port;
+
+    pthread_t wt;
+    if (pthread_create(&wt, NULL, tls_relay_worker, wa) != 0) {
+        close(fds[0]); close(fds[1]);
+        free(wa);
+        spice_channel_open_fd(channel, -1);
+        return;
+    }
+    pthread_detach(wt);
+
+    DBLOG(session, "open-fd: relay worker fds[0]=%d(spice) fds[1]=%d(relay)", fds[0], fds[1]);
+    spice_channel_open_fd(channel, fds[0]);
+}
+#endif // HAVE_SPICE
+
 // ---------------------------------------------------------------------------
 // Public API implementation
 
@@ -631,8 +692,10 @@ SpiceBridgeSession *spice_bridge_session_new(const SpiceBridgeCallbacks *callbac
     }
     session->state = SPICE_BRIDGE_STATE_DISCONNECTED;
     pthread_mutex_init(&session->lock, NULL);
-    session->relay_listen_fd = -1;
-    session->relay_running   = 0;
+    session->relay_listen_fd  = -1;
+    session->relay_running    = 0;
+    session->relay_main_fd    = -1;
+    session->relay_use_open_fd = 0;
 
 #ifdef HAVE_SPICE
     BLOG("spice_bridge_session_new: HAVE_SPICE is active, creating session");
@@ -711,12 +774,14 @@ bool spice_bridge_connect(SpiceBridgeSession *session,
     if (tls_port > 0) {
         // ----------------------------------------------------------------
         // TLS relay path: GIO has no TLS backend (GDummyTlsBackend).
-        // We create a local loopback listener, start a relay thread that
-        // does proxy CONNECT + OpenSSL TLS, and tell spice-glib to connect
-        // to 127.0.0.1:relay_port over plain TCP.
+        // Relay does proxy CONNECT + OpenSSL TLS, presents plain TCP to spice-glib.
+        //
+        // iOS:           bind/listen on 127.0.0.1:0 works fine.
+        // macOS Catalyst: bind/listen fails with EPERM in App Sandbox even with
+        //                 network.server entitlement.  Use socketpair instead.
         // ----------------------------------------------------------------
 
-        // Build relay args — parse proxy URL if present
+        // Build relay args — common to both paths
         TlsRelayArgs *ra = calloc(1, sizeof(TlsRelayArgs));
         if (!ra) {
             notify_state_change(session, SPICE_BRIDGE_STATE_ERROR);
@@ -741,7 +806,39 @@ bool spice_bridge_connect(SpiceBridgeSession *session,
             }
         }
 
-        // Create local listener on 127.0.0.1:0
+#if TARGET_OS_MACCATALYST
+        // macOS Catalyst path: socketpair for main channel + open-fd for the rest
+        int mfds[2];
+        if (socketpair(AF_UNIX, SOCK_STREAM, 0, mfds) < 0) {
+            DBLOG(session, "relay: socketpair failed errno=%d", errno);
+            free(ra);
+            notify_state_change(session, SPICE_BRIDGE_STATE_ERROR);
+            return false;
+        }
+        ra->client_fd = mfds[1];
+        session->relay_running    = 1;
+        session->relay_use_open_fd = 1;
+        session->relay_tls_port   = tls_port;
+        session->relay_has_proxy  = ra->has_proxy;
+        strncpy(session->relay_host,       ra->real_host,  sizeof(session->relay_host)       - 1);
+        strncpy(session->relay_proxy_host, ra->proxy_host, sizeof(session->relay_proxy_host) - 1);
+        session->relay_proxy_port = ra->proxy_port;
+
+        pthread_t rt;
+        pthread_create(&rt, NULL, tls_relay_worker, ra);
+        pthread_detach(rt);
+
+        session->relay_main_fd = mfds[0];  // handed to spice-glib below via open_fd
+        DBLOG(session, "relay: socketpair main_fd=%d relay_fd=%d -> %s:%d (proxy=%s:%d)",
+              mfds[0], mfds[1], host, tls_port,
+              ra->has_proxy ? ra->proxy_host : "none",
+              ra->has_proxy ? ra->proxy_port : 0);
+        if (password) {
+            g_object_set(session->spice_session, "password", password, NULL);
+        }
+
+#else
+        // iOS path: bind/listen on loopback
         int lfd = socket(AF_INET, SOCK_STREAM, 0);
         if (lfd < 0) {
             DBLOG(session, "relay: socket failed errno=%d", errno);
@@ -770,21 +867,20 @@ bool spice_bridge_connect(SpiceBridgeSession *session,
         DBLOG(session, "relay: listener on 127.0.0.1:%d -> %s:%d (proxy=%s)",
               relay_port, host, tls_port, proxy ? proxy : "none");
 
-        // Launch relay thread (detached)
         session->relay_running = 1;
         pthread_t rt;
         pthread_create(&rt, NULL, tls_relay_thread, ra);
         pthread_detach(rt);
 
-        // Point spice-glib at our local relay (plain TCP, no proxy, no TLS)
         g_object_set(session->spice_session,
                      "host", "127.0.0.1",
                      "port", g_strdup_printf("%d", relay_port),
                      NULL);
-        // Do NOT set tls-port or proxy — relay handles them
         if (password) {
             g_object_set(session->spice_session, "password", password, NULL);
         }
+#endif // TARGET_OS_MACCATALYST
+
     } else {
         // ----------------------------------------------------------------
         // Plain (non-TLS) path — use spice-glib proxy/TLS handling as-is
@@ -824,8 +920,22 @@ bool spice_bridge_connect(SpiceBridgeSession *session,
         DBLOG(session, "verify=0 (TLS cert check disabled)");
     }
 
-    gboolean success = spice_session_connect(session->spice_session);
+    gboolean success;
+#if TARGET_OS_MACCATALYST
+    if (session->relay_main_fd >= 0) {
+        // macOS: provide main channel fd; spice-glib emits open-fd for other channels
+        int fd = session->relay_main_fd;
+        session->relay_main_fd = -1;
+        success = spice_session_open_fd(session->spice_session, fd);
+        DBLOG(session, "spice_session_open_fd(fd=%d)=%d", fd, success);
+    } else {
+        success = spice_session_connect(session->spice_session);
+        DBLOG(session, "spice_session_connect=%d", success);
+    }
+#else
+    success = spice_session_connect(session->spice_session);
     DBLOG(session, "spice_session_connect=%d", success);
+#endif
 
     if (success) {
         notify_state_change(session, SPICE_BRIDGE_STATE_CONNECTED);

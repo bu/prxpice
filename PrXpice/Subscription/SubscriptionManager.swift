@@ -17,6 +17,10 @@ final class SubscriptionManager: ObservableObject {
     private var transactionListenerTask: Task<Void, Never>?
 
     private init() {
+        #if DEBUG
+        isSubscribed = true
+        return
+        #endif
         transactionListenerTask = listenForTransactions()
         Task { await refresh() }
     }
