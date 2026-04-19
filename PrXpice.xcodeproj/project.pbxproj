@@ -542,7 +542,7 @@
 				CODE_SIGN_ENTITLEMENTS = PrXpice/App/PrXpice.entitlements;
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "PrXpice/App/PrXpice-macOS.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
 					"HAVE_SPICE=1",
@@ -622,7 +622,7 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "PrXpice/App/PrXpice-macOS.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"HAVE_SPICE=1",
 					"$(inherited)",
