@@ -13,6 +13,12 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Subscription") {
+                if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
+                    Link("Manage Subscription", destination: url)
+                }
+            }
+
             Section("About") {
                 HStack {
                     Text("Version")

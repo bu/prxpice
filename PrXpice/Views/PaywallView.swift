@@ -111,7 +111,11 @@ struct PaywallView: View {
     }
 
     private var legalFooter: some View {
-        Text("Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime in App Store Settings. Free trial converts to paid after the trial period.")
+        let hasIntroOffer = subscriptionManager.products.contains {
+            $0.subscription?.introductoryOffer != nil
+        }
+        let trialText = hasIntroOffer ? " Free trial converts to paid after the trial period." : ""
+        return Text("Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime in App Store Settings.\(trialText)")
             .font(.caption2)
             .foregroundStyle(.tertiary)
             .multilineTextAlignment(.center)
