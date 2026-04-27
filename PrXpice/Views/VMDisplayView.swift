@@ -65,7 +65,10 @@ struct VMDisplayView: View {
                         )
                 }
 
-                // Keyboard toggle — fixed bottom right corner
+                // Keyboard toggle — fixed bottom right corner.
+                // Only useful on iOS where the on-screen keyboard is needed;
+                // Mac always has a hardware keyboard.
+                #if !targetEnvironment(macCatalyst)
                 VStack {
                     Spacer()
                     HStack {
@@ -86,6 +89,7 @@ struct VMDisplayView: View {
                 }
                 .zIndex(8)
                 .allowsHitTesting(true)
+                #endif
 
                 // Floating control button (draggable, snaps to edge)
                 floatingControlButton(in: geo)
