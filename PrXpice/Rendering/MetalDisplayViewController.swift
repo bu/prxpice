@@ -23,6 +23,9 @@ protocol MetalDisplayViewDelegate: AnyObject {
     func displayView(_ vc: MetalDisplayViewController, keyboardAccessoryTapped scancode: UInt32)
     func displayView(_ vc: MetalDisplayViewController, keyboardAccessoryModifierDown scancode: UInt32)
     func displayView(_ vc: MetalDisplayViewController, keyboardAccessoryModifierUp scancode: UInt32)
+    func displayView(_ vc: MetalDisplayViewController, didChangeCaptureModeActive active: Bool)
+    func displayView(_ vc: MetalDisplayViewController, sendCapturedKeyCommandWithInput input: String, modifierFlags: UIKeyCommand.ModifierFlags)
+    func displayViewReleaseAllKeys(_ vc: MetalDisplayViewController)
 }
 
 /// Weak proxy breaks the CADisplayLink → target strong-reference cycle,
@@ -77,6 +80,12 @@ final class MetalDisplayViewController: UIViewController {
     // Center zoom indicator circle with 4 directional arrows
     private let zoomIndicator = ZoomIndicatorView()
 
+    #if targetEnvironment(macCatalyst)
+    /// True while keyboard input is being captured (Mac Catalyst input grab).
+    /// On non-Catalyst platforms this controller has no notion of capture.
+    private(set) var isCaptureModeActive: Bool = false
+    #endif
+
     override var canBecomeFirstResponder: Bool { true }
 
     override func loadView() {
@@ -121,6 +130,9 @@ final class MetalDisplayViewController: UIViewController {
             zoomIndicator.heightAnchor.constraint(equalToConstant: 52),
         ])
 
+        #if targetEnvironment(macCatalyst)
+        registerCaptureLifecycleObservers()
+        #endif
     }
 
     override func viewDidLayoutSubviews() {
@@ -285,10 +297,19 @@ final class MetalDisplayViewController: UIViewController {
     }
 
     @objc private func handleHover(_ gesture: UIHoverGestureRecognizer) {
-        guard gesture.state == .began || gesture.state == .changed else { return }
-        let point = gesture.location(in: view)
-        if let displayPoint = viewPointToDisplayPoint(point) {
-            delegate?.displayView(self, pointerMovedTo: displayPoint)
+        switch gesture.state {
+        case .began, .changed:
+            let point = gesture.location(in: view)
+            if let displayPoint = viewPointToDisplayPoint(point) {
+                delegate?.displayView(self, pointerMovedTo: displayPoint)
+            }
+        case .ended, .cancelled, .failed:
+            #if targetEnvironment(macCatalyst)
+            // Pointer left the VM canvas → release input grab.
+            setCaptureMode(false)
+            #endif
+        default:
+            break
         }
     }
 
@@ -447,6 +468,16 @@ final class MetalDisplayViewController: UIViewController {
                 super.pressesBegan([press], with: event)
                 continue
             }
+            #if targetEnvironment(macCatalyst)
+            // Emergency release: Ctrl+Option+Esc exits capture mode without
+            // forwarding the keystroke to the VM.
+            if isCaptureModeActive,
+               key.keyCode == .keyboardEscape,
+               key.modifierFlags.contains([.control, .alternate]) {
+                setCaptureMode(false)
+                continue
+            }
+            #endif
             // Configured modifier + Left/Right: switch VM sessions (not forwarded to VM)
             if switchHeld || isSwitchModifier(key) {
                 if key.keyCode == .keyboardLeftArrow {
@@ -497,6 +528,10 @@ final class MetalDisplayViewController: UIViewController {
     // MARK: - Touch Events (forwarded to delegate)
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        #if targetEnvironment(macCatalyst)
+        // Click inside the VM canvas grabs input.
+        setCaptureMode(true)
+        #endif
         guard let touch = touches.first,
               let point = viewPointToDisplayPoint(touch.location(in: view))
         else { return }
@@ -523,6 +558,71 @@ final class MetalDisplayViewController: UIViewController {
         else { return }
         delegate?.displayView(self, touchCancelled: touch, at: point)
     }
+
+    // MARK: - Mac Catalyst input grab
+
+    #if targetEnvironment(macCatalyst)
+
+    override var keyCommands: [UIKeyCommand]? {
+        guard isCaptureModeActive else { return nil }
+        return CaptureKeyCommandTable.makeCommands(
+            action: #selector(handleCapturedKeyCommand(_:)),
+            excludedCombos: vmSwitchExcludedCombos()
+        )
+    }
+
+    /// Returns combos that the VM-switch hotkey would intercept in
+    /// `pressesBegan`, so they don't get hijacked by `UIKeyCommand` first.
+    private func vmSwitchExcludedCombos() -> Set<CaptureKeyCommandTable.Combo> {
+        let modFlag: UIKeyCommand.ModifierFlags?
+        switch vmSwitchHotkey {
+        case .control:  modFlag = .control
+        case .command:  modFlag = .command
+        case .option:   modFlag = .alternate
+        case .disabled: modFlag = nil
+        }
+        guard let mod = modFlag else { return [] }
+        return [
+            CaptureKeyCommandTable.Combo(input: UIKeyCommand.inputLeftArrow,  flags: mod),
+            CaptureKeyCommandTable.Combo(input: UIKeyCommand.inputRightArrow, flags: mod),
+        ]
+    }
+
+    @objc private func handleCapturedKeyCommand(_ sender: UIKeyCommand) {
+        guard let input = sender.input else { return }
+        delegate?.displayView(self,
+                              sendCapturedKeyCommandWithInput: input,
+                              modifierFlags: sender.modifierFlags)
+    }
+
+    private func setCaptureMode(_ active: Bool) {
+        guard isCaptureModeActive != active else { return }
+        isCaptureModeActive = active
+        // Drop any modifiers held at the moment of transition: their key-up
+        // events may be routed to the other side of the grab boundary.
+        delegate?.displayViewReleaseAllKeys(self)
+        setNeedsUpdateOfKeyCommands()
+        CaptureModeBus.shared.setActive(active)
+        delegate?.displayView(self, didChangeCaptureModeActive: active)
+    }
+
+    private func registerCaptureLifecycleObservers() {
+        let nc = NotificationCenter.default
+        nc.addObserver(self,
+                       selector: #selector(captureLifecycleResign),
+                       name: UIApplication.willResignActiveNotification,
+                       object: nil)
+        nc.addObserver(self,
+                       selector: #selector(captureLifecycleResign),
+                       name: UIWindow.didResignKeyNotification,
+                       object: nil)
+    }
+
+    @objc private func captureLifecycleResign() {
+        setCaptureMode(false)
+    }
+
+    #endif
 }
 
 // MARK: - Zoom indicator
