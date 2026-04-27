@@ -502,5 +502,13 @@ struct MetalDisplayViewRepresentable: UIViewControllerRepresentable {
         func displayViewReleaseAllKeys(_ vc: MetalDisplayViewController) {
             viewModel.keyboardManager.releaseAllKeys()
         }
+
+        func displayView(_ vc: MetalDisplayViewController, rightMouseButton pressed: Bool) {
+            if pressed {
+                viewModel.inputHandler.mouseButtonPress(button: .right)
+            } else {
+                viewModel.inputHandler.mouseButtonRelease(button: .right)
+            }
+        }
     }
 }

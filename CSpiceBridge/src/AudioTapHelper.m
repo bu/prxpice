@@ -127,3 +127,43 @@ void PRXRemoveFullScreenObserver(void *token) {
     (void)token;
 #endif
 }
+
+void *PRXInstallRightClickMonitor(PRXRightClickHandler handler, void *context) {
+#if TARGET_OS_MACCATALYST
+    if (!handler) return NULL;
+    Class nsEvent = NSClassFromString(@"NSEvent");
+    if (!nsEvent) return NULL;
+    // NSEventMaskRightMouseDown(1<<3) | NSEventMaskRightMouseUp(1<<4)
+    NSUInteger mask = (1ULL << 3) | (1ULL << 4);
+    id (^block)(id) = ^id(id event) {
+        NSUInteger type = ((NSUInteger(*)(id,SEL))objc_msgSend)(
+            event, sel_getUid("type"));
+        // NSEventTypeRightMouseDown == 3, NSEventTypeRightMouseUp == 4
+        bool pressed = (type == 3);
+        if (handler(pressed, context)) {
+            return nil; // swallow so AppKit doesn't show its own menu
+        }
+        return event;
+    };
+    id monitor = ((id(*)(Class,SEL,NSUInteger,id))objc_msgSend)(
+        nsEvent,
+        sel_getUid("addLocalMonitorForEventsMatchingMask:handler:"),
+        mask, block);
+    return (void *)CFBridgingRetain(monitor);
+#else
+    (void)handler; (void)context;
+    return NULL;
+#endif
+}
+
+void PRXRemoveRightClickMonitor(void *token) {
+#if TARGET_OS_MACCATALYST
+    if (!token) return;
+    id monitor = CFBridgingRelease(token);
+    Class nsEvent = NSClassFromString(@"NSEvent");
+    ((void(*)(Class,SEL,id))objc_msgSend)(
+        nsEvent, sel_getUid("removeMonitor:"), monitor);
+#else
+    (void)token;
+#endif
+}

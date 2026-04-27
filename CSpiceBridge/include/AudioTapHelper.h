@@ -39,3 +39,17 @@ void *PRXObserveDidEnterFullScreen(PRXVoidCallback handler, void *context);
 
 /// Remove an observer returned by PRXObserveDidEnterFullScreen.
 void PRXRemoveFullScreenObserver(void *token);
+
+/// Receives right-mouse events. `pressed` is true for rightMouseDown,
+/// false for rightMouseUp. Return true to swallow the event so AppKit's
+/// context menu does not appear; return false to let it through (e.g.
+/// when capture mode is off and the user is interacting with toolbar UI).
+typedef bool (*PRXRightClickHandler)(bool pressed, void *context);
+
+/// Install a local NSEvent monitor for rightMouseDown / rightMouseUp.
+/// Used to forward real Mac right-clicks to the VM instead of letting
+/// AppKit show its own context menu. Returns NULL on non-macCatalyst.
+void *PRXInstallRightClickMonitor(PRXRightClickHandler handler, void *context);
+
+/// Remove a monitor returned by PRXInstallRightClickMonitor.
+void PRXRemoveRightClickMonitor(void *token);

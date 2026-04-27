@@ -26,6 +26,7 @@ protocol MetalDisplayViewDelegate: AnyObject {
     func displayView(_ vc: MetalDisplayViewController, keyboardAccessoryModifierUp scancode: UInt32)
     func displayView(_ vc: MetalDisplayViewController, didChangeCaptureModeActive active: Bool)
     func displayView(_ vc: MetalDisplayViewController, sendCapturedKeyCommandWithInput input: String, modifierFlags: UIKeyModifierFlags)
+    func displayView(_ vc: MetalDisplayViewController, rightMouseButton pressed: Bool)
     func displayViewReleaseAllKeys(_ vc: MetalDisplayViewController)
 }
 
@@ -703,7 +704,23 @@ final class MetalDisplayViewController: UIViewController {
         if fullScreenObserverToken == nil {
             fullScreenObserverToken = PRXObserveDidEnterFullScreen(trigger, context)
         }
+        if rightClickMonitorToken == nil {
+            rightClickMonitorToken = PRXInstallRightClickMonitor({ pressed, ctx in
+                guard let ctx else { return false }
+                let me = Unmanaged<MetalDisplayViewController>
+                    .fromOpaque(ctx).takeUnretainedValue()
+                // Only steal the right-click when capture is active; otherwise
+                // let AppKit show its own menu (e.g. on toolbar UI).
+                guard me.isCaptureModeActive else { return false }
+                DispatchQueue.main.async {
+                    me.delegate?.displayView(me, rightMouseButton: pressed)
+                }
+                return true
+            }, context)
+        }
     }
+
+    private var rightClickMonitorToken: UnsafeMutableRawPointer?
 
     private func removeAutoCaptureTriggers() {
         if let t = mouseMovedMonitorToken {
@@ -713,6 +730,10 @@ final class MetalDisplayViewController: UIViewController {
         if let t = fullScreenObserverToken {
             PRXRemoveFullScreenObserver(t)
             fullScreenObserverToken = nil
+        }
+        if let t = rightClickMonitorToken {
+            PRXRemoveRightClickMonitor(t)
+            rightClickMonitorToken = nil
         }
     }
 
