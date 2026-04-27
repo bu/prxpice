@@ -17,6 +17,11 @@ DerivedData/
 # Build
 build/
 .build-deps/
+.build-deps-catalyst/
+.build-deps-catalyst-*/
+Vendor-catalyst/
+Vendor-catalyst-*/
+dist/
 
 # Swift Package Manager
 .swiftpm/
