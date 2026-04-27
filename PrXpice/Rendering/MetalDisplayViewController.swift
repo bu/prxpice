@@ -133,6 +133,7 @@ final class MetalDisplayViewController: UIViewController {
 
         #if targetEnvironment(macCatalyst)
         registerCaptureLifecycleObservers()
+        installAutoCaptureTriggers()
         #endif
     }
 
@@ -149,6 +150,10 @@ final class MetalDisplayViewController: UIViewController {
 
     deinit {
         stopDisplayLink()
+        #if targetEnvironment(macCatalyst)
+        removeAutoCaptureTriggers()
+        removeEscMonitor()
+        #endif
     }
 
     // viewWillDisappear is intentionally NOT stopping the display link.
@@ -304,12 +309,11 @@ final class MetalDisplayViewController: UIViewController {
             if let displayPoint = viewPointToDisplayPoint(point) {
                 delegate?.displayView(self, pointerMovedTo: displayPoint)
             }
-        case .ended, .cancelled, .failed:
-            #if targetEnvironment(macCatalyst)
-            // Pointer left the VM canvas → release input grab.
-            setCaptureMode(false)
-            #endif
         default:
+            // Pointer leaving the VM canvas no longer releases capture: the
+            // mouse may simply be over the toolbar or window padding, where
+            // we still want the VM to receive keystrokes. Capture release
+            // happens on window-resign-key, app resign, or Ctrl+Option+Esc.
             break
         }
     }
@@ -675,6 +679,41 @@ final class MetalDisplayViewController: UIViewController {
 
     @objc private func captureLifecycleResign() {
         setCaptureMode(false)
+    }
+
+    // Auto-engage capture as soon as the user is "using" the window: any
+    // mouse movement inside an app window or the window going fullscreen.
+    // Manual click on the VM canvas (touchesBegan) still works as a fallback.
+    private var mouseMovedMonitorToken: UnsafeMutableRawPointer?
+    private var fullScreenObserverToken: UnsafeMutableRawPointer?
+
+    private func installAutoCaptureTriggers() {
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        let trigger: @convention(c) (UnsafeMutableRawPointer?) -> Void = { ctx in
+            guard let ctx else { return }
+            let me = Unmanaged<MetalDisplayViewController>
+                .fromOpaque(ctx).takeUnretainedValue()
+            if !me.isCaptureModeActive {
+                me.setCaptureMode(true)
+            }
+        }
+        if mouseMovedMonitorToken == nil {
+            mouseMovedMonitorToken = PRXInstallMouseMovedMonitor(trigger, context)
+        }
+        if fullScreenObserverToken == nil {
+            fullScreenObserverToken = PRXObserveDidEnterFullScreen(trigger, context)
+        }
+    }
+
+    private func removeAutoCaptureTriggers() {
+        if let t = mouseMovedMonitorToken {
+            PRXRemoveMouseMovedMonitor(t)
+            mouseMovedMonitorToken = nil
+        }
+        if let t = fullScreenObserverToken {
+            PRXRemoveFullScreenObserver(t)
+            fullScreenObserverToken = nil
+        }
     }
 
     #endif

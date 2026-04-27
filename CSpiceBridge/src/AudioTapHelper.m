@@ -53,3 +53,77 @@ void PRXRemoveKeyDownMonitor(void *token) {
     (void)token;
 #endif
 }
+
+void *PRXInstallMouseMovedMonitor(PRXVoidCallback handler, void *context) {
+#if TARGET_OS_MACCATALYST
+    if (!handler) return NULL;
+    Class nsEvent = NSClassFromString(@"NSEvent");
+    Class nsApp = NSClassFromString(@"NSApplication");
+    if (!nsEvent || !nsApp) return NULL;
+    // mouseMoved events are dropped by NSWindow unless it explicitly
+    // opts in. Set the flag on every existing window.
+    id app = ((id(*)(Class,SEL))objc_msgSend)(nsApp, sel_getUid("sharedApplication"));
+    id wins = ((id(*)(id,SEL))objc_msgSend)(app, sel_getUid("windows"));
+    NSUInteger count = ((NSUInteger(*)(id,SEL))objc_msgSend)(wins, sel_getUid("count"));
+    for (NSUInteger i = 0; i < count; i++) {
+        id win = ((id(*)(id,SEL,NSUInteger))objc_msgSend)(
+            wins, sel_getUid("objectAtIndex:"), i);
+        ((void(*)(id,SEL,BOOL))objc_msgSend)(
+            win, sel_getUid("setAcceptsMouseMovedEvents:"), YES);
+    }
+    // NSEventMaskMouseMoved == 1ULL << NSEventTypeMouseMoved(5)
+    NSUInteger mask = 1ULL << 5;
+    id (^block)(id) = ^id(id event) {
+        handler(context);
+        return event; // never swallow; just observe
+    };
+    id monitor = ((id(*)(Class,SEL,NSUInteger,id))objc_msgSend)(
+        nsEvent,
+        sel_getUid("addLocalMonitorForEventsMatchingMask:handler:"),
+        mask, block);
+    return (void *)CFBridgingRetain(monitor);
+#else
+    (void)handler; (void)context;
+    return NULL;
+#endif
+}
+
+void PRXRemoveMouseMovedMonitor(void *token) {
+#if TARGET_OS_MACCATALYST
+    if (!token) return;
+    id monitor = CFBridgingRelease(token);
+    Class nsEvent = NSClassFromString(@"NSEvent");
+    ((void(*)(Class,SEL,id))objc_msgSend)(
+        nsEvent, sel_getUid("removeMonitor:"), monitor);
+#else
+    (void)token;
+#endif
+}
+
+void *PRXObserveDidEnterFullScreen(PRXVoidCallback handler, void *context) {
+#if TARGET_OS_MACCATALYST
+    if (!handler) return NULL;
+    NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+    id obs = [nc addObserverForName:@"NSWindowDidEnterFullScreenNotification"
+                             object:nil
+                              queue:[NSOperationQueue mainQueue]
+                         usingBlock:^(NSNotification * _Nonnull note) {
+        (void)note;
+        handler(context);
+    }];
+    return (void *)CFBridgingRetain(obs);
+#else
+    (void)handler; (void)context;
+    return NULL;
+#endif
+}
+
+void PRXRemoveFullScreenObserver(void *token) {
+#if TARGET_OS_MACCATALYST
+    if (!token) return;
+    id obs = CFBridgingRelease(token);
+    [[NSNotificationCenter defaultCenter] removeObserver:obs];
+#else
+    (void)token;
+#endif
+}

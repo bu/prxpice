@@ -20,3 +20,22 @@ void *PRXInstallKeyDownMonitor(PRXKeyHandler handler, void *context);
 
 /// Remove a monitor returned by PRXInstallKeyDownMonitor.
 void PRXRemoveKeyDownMonitor(void *token);
+
+/// Generic context-only callback used by the capture-mode auto-triggers.
+typedef void (*PRXVoidCallback)(void *context);
+
+/// Enable mouseMoved delivery on every NSWindow and install a local
+/// NSEvent monitor that fires whenever the mouse moves inside one of the
+/// app's windows. Used to engage VM input capture without requiring a
+/// click. Returns an opaque token, or NULL on non-macCatalyst.
+void *PRXInstallMouseMovedMonitor(PRXVoidCallback handler, void *context);
+
+/// Remove a monitor returned by PRXInstallMouseMovedMonitor.
+void PRXRemoveMouseMovedMonitor(void *token);
+
+/// Subscribe to NSWindowDidEnterFullScreenNotification. Used to engage
+/// VM input capture as soon as the macOS window goes fullscreen.
+void *PRXObserveDidEnterFullScreen(PRXVoidCallback handler, void *context);
+
+/// Remove an observer returned by PRXObserveDidEnterFullScreen.
+void PRXRemoveFullScreenObserver(void *token);
