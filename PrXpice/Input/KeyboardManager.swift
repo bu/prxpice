@@ -57,7 +57,7 @@ final class KeyboardManager {
     /// modifier press/release. Used by the Mac Catalyst capture mode, where
     /// `UIKeyCommand` action delivery does not generate matching `pressesBegan`/
     /// `pressesEnded` events.
-    func sendKeyCommandTap(input: String, flags: UIKeyCommand.ModifierFlags) {
+    func sendKeyCommandTap(input: String, flags: UIKeyModifierFlags) {
         guard let inputHandler else { return }
         guard let base = CaptureKeyCommandTable.baseScancode(forInput: input) else { return }
 

@@ -488,12 +488,14 @@ struct MetalDisplayViewRepresentable: UIViewControllerRepresentable {
         }
 
         func displayView(_ vc: MetalDisplayViewController, didChangeCaptureModeActive active: Bool) {
-            viewModel.isCaptureModeActive = active
+            MainActor.assumeIsolated {
+                viewModel.isCaptureModeActive = active
+            }
         }
 
         func displayView(_ vc: MetalDisplayViewController,
                          sendCapturedKeyCommandWithInput input: String,
-                         modifierFlags: UIKeyCommand.ModifierFlags) {
+                         modifierFlags: UIKeyModifierFlags) {
             viewModel.keyboardManager.sendKeyCommandTap(input: input, flags: modifierFlags)
         }
 

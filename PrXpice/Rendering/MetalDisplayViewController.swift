@@ -24,7 +24,7 @@ protocol MetalDisplayViewDelegate: AnyObject {
     func displayView(_ vc: MetalDisplayViewController, keyboardAccessoryModifierDown scancode: UInt32)
     func displayView(_ vc: MetalDisplayViewController, keyboardAccessoryModifierUp scancode: UInt32)
     func displayView(_ vc: MetalDisplayViewController, didChangeCaptureModeActive active: Bool)
-    func displayView(_ vc: MetalDisplayViewController, sendCapturedKeyCommandWithInput input: String, modifierFlags: UIKeyCommand.ModifierFlags)
+    func displayView(_ vc: MetalDisplayViewController, sendCapturedKeyCommandWithInput input: String, modifierFlags: UIKeyModifierFlags)
     func displayViewReleaseAllKeys(_ vc: MetalDisplayViewController)
 }
 
@@ -574,7 +574,7 @@ final class MetalDisplayViewController: UIViewController {
     /// Returns combos that the VM-switch hotkey would intercept in
     /// `pressesBegan`, so they don't get hijacked by `UIKeyCommand` first.
     private func vmSwitchExcludedCombos() -> Set<CaptureKeyCommandTable.Combo> {
-        let modFlag: UIKeyCommand.ModifierFlags?
+        let modFlag: UIKeyModifierFlags?
         switch vmSwitchHotkey {
         case .control:  modFlag = .control
         case .command:  modFlag = .command
@@ -601,7 +601,6 @@ final class MetalDisplayViewController: UIViewController {
         // Drop any modifiers held at the moment of transition: their key-up
         // events may be routed to the other side of the grab boundary.
         delegate?.displayViewReleaseAllKeys(self)
-        setNeedsUpdateOfKeyCommands()
         CaptureModeBus.shared.setActive(active)
         delegate?.displayView(self, didChangeCaptureModeActive: active)
     }

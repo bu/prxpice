@@ -16,7 +16,7 @@ enum CaptureKeyCommandTable {
 
     /// Returns the modifier scancodes that should be pressed for these flags,
     /// in press order (release order is the reverse).
-    static func modifierScancodes(for flags: UIKeyCommand.ModifierFlags) -> [UInt32] {
+    static func modifierScancodes(for flags: UIKeyModifierFlags) -> [UInt32] {
         var out: [UInt32] = []
         // Ordering matches a typical OS keystroke: Ctrl, Shift, Alt, Cmd.
         if flags.contains(.control)   { out.append(scancodeLeftCtrl) }
@@ -57,7 +57,7 @@ enum CaptureKeyCommandTable {
     /// to express exclusions.
     struct Combo: Hashable {
         let input: String
-        let flags: UIKeyCommand.ModifierFlags
+        let flags: UIKeyModifierFlags
 
         static func == (lhs: Combo, rhs: Combo) -> Bool {
             lhs.input == rhs.input && lhs.flags == rhs.flags
@@ -71,11 +71,13 @@ enum CaptureKeyCommandTable {
 
     // MARK: - Combo enumeration
 
+    // F1-F12 input strings: Unicode private-use codepoints used by UIKit/AppKit
+    // for function keys. UIKeyCommand has no public Swift constants for these.
     private static let functionKeyInputs: [String] = [
-        UIKeyCommand.inputF1,  UIKeyCommand.inputF2,  UIKeyCommand.inputF3,
-        UIKeyCommand.inputF4,  UIKeyCommand.inputF5,  UIKeyCommand.inputF6,
-        UIKeyCommand.inputF7,  UIKeyCommand.inputF8,  UIKeyCommand.inputF9,
-        UIKeyCommand.inputF10, UIKeyCommand.inputF11, UIKeyCommand.inputF12,
+        "\u{F704}", "\u{F705}", "\u{F706}",  // F1, F2, F3
+        "\u{F707}", "\u{F708}", "\u{F709}",  // F4, F5, F6
+        "\u{F70A}", "\u{F70B}", "\u{F70C}",  // F7, F8, F9
+        "\u{F70D}", "\u{F70E}", "\u{F70F}",  // F10, F11, F12
     ]
 
     private static let navigationInputs: [String] = [
@@ -96,7 +98,7 @@ enum CaptureKeyCommandTable {
 
         // Letters a-z with several common modifier sets.
         let letters = "abcdefghijklmnopqrstuvwxyz".map { String($0) }
-        let letterModSets: [UIKeyCommand.ModifierFlags] = [
+        let letterModSets: [UIKeyModifierFlags] = [
             .command,
             [.command, .shift],
             [.command, .alternate],
@@ -110,7 +112,7 @@ enum CaptureKeyCommandTable {
 
         // Digits 0-9 with Cmd and Cmd+Shift.
         let digits = "0123456789".map { String($0) }
-        let digitModSets: [UIKeyCommand.ModifierFlags] = [.command, [.command, .shift]]
+        let digitModSets: [UIKeyModifierFlags] = [.command, [.command, .shift]]
         for digit in digits {
             for mods in digitModSets {
                 out.append(Combo(input: digit, flags: mods))
