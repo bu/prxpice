@@ -50,6 +50,9 @@
 		A100000065 /* SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000065 /* SessionStore.swift */; };
 		A100000080 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000080 /* PaywallView.swift */; };
 		A100000081 /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000081 /* SubscriptionManager.swift */; };
+		A100000090 /* CaptureModeBus.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000090 /* CaptureModeBus.swift */; };
+		A100000091 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000091 /* AppDelegate.swift */; };
+		A100000092 /* CaptureKeyCommandTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = B100000092 /* CaptureKeyCommandTable.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -103,6 +106,9 @@
 		B100000071 /* AudioTapHelper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AudioTapHelper.h; sourceTree = "<group>"; };
 		B100000080 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		B100000081 /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
+		B100000090 /* CaptureModeBus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureModeBus.swift; sourceTree = "<group>"; };
+		B100000091 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		B100000092 /* CaptureKeyCommandTable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureKeyCommandTable.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -151,6 +157,8 @@
 			isa = PBXGroup;
 			children = (
 				B100000001 /* PrXpiceApp.swift */,
+				B100000091 /* AppDelegate.swift */,
+				B100000090 /* CaptureModeBus.swift */,
 				B100000033 /* Info.plist */,
 				B100000050 /* PrXpice.entitlements */,
 				B100000051 /* PrXpice-macOS.entitlements */,
@@ -234,6 +242,7 @@
 				B100000023 /* KeyboardManager.swift */,
 				B100000024 /* ScancodeMap.swift */,
 				B100000063 /* KeyboardAccessoryView.swift */,
+				B100000092 /* CaptureKeyCommandTable.swift */,
 			);
 			path = Input;
 			sourceTree = "<group>";
@@ -419,6 +428,9 @@
 				A100000063 /* KeyboardAccessoryView.swift in Sources */,
 				A100000080 /* PaywallView.swift in Sources */,
 				A100000081 /* SubscriptionManager.swift in Sources */,
+				A100000090 /* CaptureModeBus.swift in Sources */,
+				A100000091 /* AppDelegate.swift in Sources */,
+				A100000092 /* CaptureKeyCommandTable.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

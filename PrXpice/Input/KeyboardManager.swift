@@ -52,4 +52,23 @@ final class KeyboardManager {
         }
         pressedKeys.removeAll()
     }
+
+    /// Replays a `UIKeyCommand` as a discrete press/release pair plus surrounding
+    /// modifier press/release. Used by the Mac Catalyst capture mode, where
+    /// `UIKeyCommand` action delivery does not generate matching `pressesBegan`/
+    /// `pressesEnded` events.
+    func sendKeyCommandTap(input: String, flags: UIKeyModifierFlags) {
+        guard let inputHandler else { return }
+        guard let base = CaptureKeyCommandTable.baseScancode(forInput: input) else { return }
+
+        let modifiers = CaptureKeyCommandTable.modifierScancodes(for: flags)
+        for mod in modifiers {
+            inputHandler.keyPress(scancode: mod)
+        }
+        inputHandler.keyPress(scancode: base)
+        inputHandler.keyRelease(scancode: base)
+        for mod in modifiers.reversed() {
+            inputHandler.keyRelease(scancode: mod)
+        }
+    }
 }

@@ -3,6 +3,7 @@ import CSpiceBridge
 
 @main
 struct PrXpiceApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var connectionStore = ConnectionStore()
     @StateObject private var sessionStore = SessionStore()
     @StateObject private var subscriptionManager = SubscriptionManager.shared

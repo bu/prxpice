@@ -8,6 +8,10 @@ final class VMDisplayViewModel: ObservableObject {
     @Published var showToolbar = true
     @Published private(set) var debugLog: [String] = []
 
+    /// True while keyboard input is captured by the VM (Mac Catalyst only).
+    /// Driven by `MetalDisplayViewController` via the coordinator callback.
+    @Published var isCaptureModeActive: Bool = false
+
     let sessionManager = SpiceSessionManager()
     let displayHandler = SpiceDisplayHandler()
     let inputHandler = SpiceInputHandler()

@@ -1,6 +1,7 @@
 import UIKit
 import Metal
 import QuartzCore
+import CSpiceBridge
 
 /// UIViewController that hosts a CAMetalLayer for rendering the SPICE VM display.
 /// Uses CADisplayLink for vsync-aligned rendering with coalesced updates.
@@ -23,6 +24,10 @@ protocol MetalDisplayViewDelegate: AnyObject {
     func displayView(_ vc: MetalDisplayViewController, keyboardAccessoryTapped scancode: UInt32)
     func displayView(_ vc: MetalDisplayViewController, keyboardAccessoryModifierDown scancode: UInt32)
     func displayView(_ vc: MetalDisplayViewController, keyboardAccessoryModifierUp scancode: UInt32)
+    func displayView(_ vc: MetalDisplayViewController, didChangeCaptureModeActive active: Bool)
+    func displayView(_ vc: MetalDisplayViewController, sendCapturedKeyCommandWithInput input: String, modifierFlags: UIKeyModifierFlags)
+    func displayView(_ vc: MetalDisplayViewController, rightMouseButton pressed: Bool)
+    func displayViewReleaseAllKeys(_ vc: MetalDisplayViewController)
 }
 
 /// Weak proxy breaks the CADisplayLink → target strong-reference cycle,
@@ -77,6 +82,12 @@ final class MetalDisplayViewController: UIViewController {
     // Center zoom indicator circle with 4 directional arrows
     private let zoomIndicator = ZoomIndicatorView()
 
+    #if targetEnvironment(macCatalyst)
+    /// True while keyboard input is being captured (Mac Catalyst input grab).
+    /// On non-Catalyst platforms this controller has no notion of capture.
+    private(set) var isCaptureModeActive: Bool = false
+    #endif
+
     override var canBecomeFirstResponder: Bool { true }
 
     override func loadView() {
@@ -121,6 +132,10 @@ final class MetalDisplayViewController: UIViewController {
             zoomIndicator.heightAnchor.constraint(equalToConstant: 52),
         ])
 
+        #if targetEnvironment(macCatalyst)
+        registerCaptureLifecycleObservers()
+        installAutoCaptureTriggers()
+        #endif
     }
 
     override func viewDidLayoutSubviews() {
@@ -136,6 +151,10 @@ final class MetalDisplayViewController: UIViewController {
 
     deinit {
         stopDisplayLink()
+        #if targetEnvironment(macCatalyst)
+        removeAutoCaptureTriggers()
+        removeEscMonitor()
+        #endif
     }
 
     // viewWillDisappear is intentionally NOT stopping the display link.
@@ -285,10 +304,18 @@ final class MetalDisplayViewController: UIViewController {
     }
 
     @objc private func handleHover(_ gesture: UIHoverGestureRecognizer) {
-        guard gesture.state == .began || gesture.state == .changed else { return }
-        let point = gesture.location(in: view)
-        if let displayPoint = viewPointToDisplayPoint(point) {
-            delegate?.displayView(self, pointerMovedTo: displayPoint)
+        switch gesture.state {
+        case .began, .changed:
+            let point = gesture.location(in: view)
+            if let displayPoint = viewPointToDisplayPoint(point) {
+                delegate?.displayView(self, pointerMovedTo: displayPoint)
+            }
+        default:
+            // Pointer leaving the VM canvas no longer releases capture: the
+            // mouse may simply be over the toolbar or window padding, where
+            // we still want the VM to receive keystrokes. Capture release
+            // happens on window-resign-key, app resign, or Ctrl+Option+Esc.
+            break
         }
     }
 
@@ -447,6 +474,16 @@ final class MetalDisplayViewController: UIViewController {
                 super.pressesBegan([press], with: event)
                 continue
             }
+            #if targetEnvironment(macCatalyst)
+            // Emergency release: Ctrl+Option+Esc exits capture mode without
+            // forwarding the keystroke to the VM.
+            if isCaptureModeActive,
+               key.keyCode == .keyboardEscape,
+               key.modifierFlags.contains([.control, .alternate]) {
+                setCaptureMode(false)
+                continue
+            }
+            #endif
             // Configured modifier + Left/Right: switch VM sessions (not forwarded to VM)
             if switchHeld || isSwitchModifier(key) {
                 if key.keyCode == .keyboardLeftArrow {
@@ -497,6 +534,10 @@ final class MetalDisplayViewController: UIViewController {
     // MARK: - Touch Events (forwarded to delegate)
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        #if targetEnvironment(macCatalyst)
+        // Click inside the VM canvas grabs input.
+        setCaptureMode(true)
+        #endif
         guard let touch = touches.first,
               let point = viewPointToDisplayPoint(touch.location(in: view))
         else { return }
@@ -523,6 +564,180 @@ final class MetalDisplayViewController: UIViewController {
         else { return }
         delegate?.displayView(self, touchCancelled: touch, at: point)
     }
+
+    // MARK: - Mac Catalyst input grab
+
+    #if targetEnvironment(macCatalyst)
+
+    override var keyCommands: [UIKeyCommand]? {
+        guard isCaptureModeActive else { return nil }
+        return CaptureKeyCommandTable.makeCommands(
+            action: #selector(handleCapturedKeyCommand(_:)),
+            excludedCombos: vmSwitchExcludedCombos()
+        )
+    }
+
+    /// Returns combos that the VM-switch hotkey would intercept in
+    /// `pressesBegan`, so they don't get hijacked by `UIKeyCommand` first.
+    private func vmSwitchExcludedCombos() -> Set<CaptureKeyCommandTable.Combo> {
+        let modFlag: UIKeyModifierFlags?
+        switch vmSwitchHotkey {
+        case .control:  modFlag = .control
+        case .command:  modFlag = .command
+        case .option:   modFlag = .alternate
+        case .disabled: modFlag = nil
+        }
+        guard let mod = modFlag else { return [] }
+        return [
+            CaptureKeyCommandTable.Combo(input: UIKeyCommand.inputLeftArrow,  flags: mod),
+            CaptureKeyCommandTable.Combo(input: UIKeyCommand.inputRightArrow, flags: mod),
+        ]
+    }
+
+    @objc private func handleCapturedKeyCommand(_ sender: UIKeyCommand) {
+        guard let input = sender.input else { return }
+        delegate?.displayView(self,
+                              sendCapturedKeyCommandWithInput: input,
+                              modifierFlags: sender.modifierFlags)
+    }
+
+    private func setCaptureMode(_ active: Bool) {
+        guard isCaptureModeActive != active else { return }
+        isCaptureModeActive = active
+        // Drop any modifiers held at the moment of transition: their key-up
+        // events may be routed to the other side of the grab boundary.
+        delegate?.displayViewReleaseAllKeys(self)
+        if active {
+            installEscMonitor()
+        } else {
+            removeEscMonitor()
+        }
+        CaptureModeBus.shared.setActive(active)
+        delegate?.displayView(self, didChangeCaptureModeActive: active)
+    }
+
+    // NSEvent monitor that swallows Esc + modifiers while capture mode is on.
+    // UIKeyCommand priority does not stop AppKit's NSWindow from consuming
+    // Esc as the cancelOperation: that exits fullscreen, so we intercept at
+    // the NSEvent layer and forward via the keyboard manager instead.
+    private var keyDownMonitorToken: UnsafeMutableRawPointer?
+
+    private func installEscMonitor() {
+        guard keyDownMonitorToken == nil else { return }
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        keyDownMonitorToken = PRXInstallKeyDownMonitor({ keyCode, flags, ctx in
+            guard let ctx else { return false }
+            // Esc keyCode on macOS hardware is 53.
+            guard keyCode == 53 else { return false }
+            let me = Unmanaged<MetalDisplayViewController>
+                .fromOpaque(ctx).takeUnretainedValue()
+            return me.handleEscFromMonitor(rawFlags: flags)
+        }, context)
+    }
+
+    private func removeEscMonitor() {
+        guard let token = keyDownMonitorToken else { return }
+        PRXRemoveKeyDownMonitor(token)
+        keyDownMonitorToken = nil
+    }
+
+    private func handleEscFromMonitor(rawFlags: UInt) -> Bool {
+        // NSEvent.modifierFlags and UIKeyModifierFlags share bit positions
+        // for shift/control/alternate/command. Mask out non-modifier bits.
+        let modMask: UInt = 0xffff0000
+        let mod = UIKeyModifierFlags(rawValue: Int(rawFlags & modMask))
+
+        // Emergency release: Ctrl+Option+Esc exits capture mode.
+        if mod.contains([.control, .alternate]) {
+            DispatchQueue.main.async { [weak self] in
+                self?.setCaptureMode(false)
+            }
+            return true
+        }
+        // Forward Esc + relevant modifiers to the VM.
+        let clean = mod.intersection([.shift, .control, .alternate, .command])
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.delegate?.displayView(
+                self,
+                sendCapturedKeyCommandWithInput: UIKeyCommand.inputEscape,
+                modifierFlags: clean)
+        }
+        return true
+    }
+
+    private func registerCaptureLifecycleObservers() {
+        let nc = NotificationCenter.default
+        nc.addObserver(self,
+                       selector: #selector(captureLifecycleResign),
+                       name: UIApplication.willResignActiveNotification,
+                       object: nil)
+        nc.addObserver(self,
+                       selector: #selector(captureLifecycleResign),
+                       name: UIWindow.didResignKeyNotification,
+                       object: nil)
+    }
+
+    @objc private func captureLifecycleResign() {
+        setCaptureMode(false)
+    }
+
+    // Auto-engage capture as soon as the user is "using" the window: any
+    // mouse movement inside an app window or the window going fullscreen.
+    // Manual click on the VM canvas (touchesBegan) still works as a fallback.
+    private var mouseMovedMonitorToken: UnsafeMutableRawPointer?
+    private var fullScreenObserverToken: UnsafeMutableRawPointer?
+
+    private func installAutoCaptureTriggers() {
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        let trigger: @convention(c) (UnsafeMutableRawPointer?) -> Void = { ctx in
+            guard let ctx else { return }
+            let me = Unmanaged<MetalDisplayViewController>
+                .fromOpaque(ctx).takeUnretainedValue()
+            if !me.isCaptureModeActive {
+                me.setCaptureMode(true)
+            }
+        }
+        if mouseMovedMonitorToken == nil {
+            mouseMovedMonitorToken = PRXInstallMouseMovedMonitor(trigger, context)
+        }
+        if fullScreenObserverToken == nil {
+            fullScreenObserverToken = PRXObserveDidEnterFullScreen(trigger, context)
+        }
+        if rightClickMonitorToken == nil {
+            rightClickMonitorToken = PRXInstallRightClickMonitor({ pressed, ctx in
+                guard let ctx else { return false }
+                let me = Unmanaged<MetalDisplayViewController>
+                    .fromOpaque(ctx).takeUnretainedValue()
+                // Only steal the right-click when capture is active; otherwise
+                // let AppKit show its own menu (e.g. on toolbar UI).
+                guard me.isCaptureModeActive else { return false }
+                DispatchQueue.main.async {
+                    me.delegate?.displayView(me, rightMouseButton: pressed)
+                }
+                return true
+            }, context)
+        }
+    }
+
+    private var rightClickMonitorToken: UnsafeMutableRawPointer?
+
+    private func removeAutoCaptureTriggers() {
+        if let t = mouseMovedMonitorToken {
+            PRXRemoveMouseMovedMonitor(t)
+            mouseMovedMonitorToken = nil
+        }
+        if let t = fullScreenObserverToken {
+            PRXRemoveFullScreenObserver(t)
+            fullScreenObserverToken = nil
+        }
+        if let t = rightClickMonitorToken {
+            PRXRemoveRightClickMonitor(t)
+            rightClickMonitorToken = nil
+        }
+    }
+
+    #endif
 }
 
 // MARK: - Zoom indicator

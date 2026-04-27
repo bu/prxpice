@@ -48,6 +48,12 @@ struct VMDisplayView: View {
                 .aspectRatio(16.0 / 10.0, contentMode: .fit)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+                #if targetEnvironment(macCatalyst)
+                if viewModel.isCaptureModeActive {
+                    captureModeOverlay
+                }
+                #endif
+
                 // Floating debug log panel
                 if showDebugPanel {
                     debugLogView
@@ -59,7 +65,10 @@ struct VMDisplayView: View {
                         )
                 }
 
-                // Keyboard toggle — fixed bottom right corner
+                // Keyboard toggle — fixed bottom right corner.
+                // Only useful on iOS where the on-screen keyboard is needed;
+                // Mac always has a hardware keyboard.
+                #if !targetEnvironment(macCatalyst)
                 VStack {
                     Spacer()
                     HStack {
@@ -80,6 +89,7 @@ struct VMDisplayView: View {
                 }
                 .zIndex(8)
                 .allowsHitTesting(true)
+                #endif
 
                 // Floating control button (draggable, snaps to edge)
                 floatingControlButton(in: geo)
@@ -127,6 +137,30 @@ struct VMDisplayView: View {
             showKeyboard = false
         }
     }
+
+    #if targetEnvironment(macCatalyst)
+    private var captureModeOverlay: some View {
+        ZStack {
+            Rectangle()
+                .strokeBorder(Color.green.opacity(0.85), lineWidth: 3)
+                .ignoresSafeArea()
+            VStack {
+                Spacer()
+                HStack(spacing: 6) {
+                    Image(systemName: "lock.fill")
+                    Text("Input captured — press Ctrl+Option+Esc to release")
+                }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(.black.opacity(0.6), in: Capsule())
+                .padding(.bottom, 18)
+            }
+        }
+        .allowsHitTesting(false)
+        .zIndex(7)
+    }
+    #endif
 
     private func floatingControlButton(in geo: GeometryProxy) -> some View {
         // Left/right edge → vertical pill; top/bottom edge → horizontal pill
@@ -455,6 +489,30 @@ struct MetalDisplayViewRepresentable: UIViewControllerRepresentable {
 
         func displayView(_ vc: MetalDisplayViewController, keyboardAccessoryModifierUp scancode: UInt32) {
             viewModel.inputHandler.keyRelease(scancode: scancode)
+        }
+
+        func displayView(_ vc: MetalDisplayViewController, didChangeCaptureModeActive active: Bool) {
+            MainActor.assumeIsolated {
+                viewModel.isCaptureModeActive = active
+            }
+        }
+
+        func displayView(_ vc: MetalDisplayViewController,
+                         sendCapturedKeyCommandWithInput input: String,
+                         modifierFlags: UIKeyModifierFlags) {
+            viewModel.keyboardManager.sendKeyCommandTap(input: input, flags: modifierFlags)
+        }
+
+        func displayViewReleaseAllKeys(_ vc: MetalDisplayViewController) {
+            viewModel.keyboardManager.releaseAllKeys()
+        }
+
+        func displayView(_ vc: MetalDisplayViewController, rightMouseButton pressed: Bool) {
+            if pressed {
+                viewModel.inputHandler.mouseButtonPress(button: .right)
+            } else {
+                viewModel.inputHandler.mouseButtonRelease(button: .right)
+            }
         }
     }
 }
