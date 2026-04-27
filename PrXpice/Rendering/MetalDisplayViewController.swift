@@ -1,6 +1,7 @@
 import UIKit
 import Metal
 import QuartzCore
+import CSpiceBridge
 
 /// UIViewController that hosts a CAMetalLayer for rendering the SPICE VM display.
 /// Uses CADisplayLink for vsync-aligned rendering with coalesced updates.
@@ -601,8 +602,63 @@ final class MetalDisplayViewController: UIViewController {
         // Drop any modifiers held at the moment of transition: their key-up
         // events may be routed to the other side of the grab boundary.
         delegate?.displayViewReleaseAllKeys(self)
+        if active {
+            installEscMonitor()
+        } else {
+            removeEscMonitor()
+        }
         CaptureModeBus.shared.setActive(active)
         delegate?.displayView(self, didChangeCaptureModeActive: active)
+    }
+
+    // NSEvent monitor that swallows Esc + modifiers while capture mode is on.
+    // UIKeyCommand priority does not stop AppKit's NSWindow from consuming
+    // Esc as the cancelOperation: that exits fullscreen, so we intercept at
+    // the NSEvent layer and forward via the keyboard manager instead.
+    private var keyDownMonitorToken: UnsafeMutableRawPointer?
+
+    private func installEscMonitor() {
+        guard keyDownMonitorToken == nil else { return }
+        let context = Unmanaged.passUnretained(self).toOpaque()
+        keyDownMonitorToken = PRXInstallKeyDownMonitor({ keyCode, flags, ctx in
+            guard let ctx else { return false }
+            // Esc keyCode on macOS hardware is 53.
+            guard keyCode == 53 else { return false }
+            let me = Unmanaged<MetalDisplayViewController>
+                .fromOpaque(ctx).takeUnretainedValue()
+            return me.handleEscFromMonitor(rawFlags: flags)
+        }, context)
+    }
+
+    private func removeEscMonitor() {
+        guard let token = keyDownMonitorToken else { return }
+        PRXRemoveKeyDownMonitor(token)
+        keyDownMonitorToken = nil
+    }
+
+    private func handleEscFromMonitor(rawFlags: UInt) -> Bool {
+        // NSEvent.modifierFlags and UIKeyModifierFlags share bit positions
+        // for shift/control/alternate/command. Mask out non-modifier bits.
+        let modMask: UInt = 0xffff0000
+        let mod = UIKeyModifierFlags(rawValue: Int(rawFlags & modMask))
+
+        // Emergency release: Ctrl+Option+Esc exits capture mode.
+        if mod.contains([.control, .alternate]) {
+            DispatchQueue.main.async { [weak self] in
+                self?.setCaptureMode(false)
+            }
+            return true
+        }
+        // Forward Esc + relevant modifiers to the VM.
+        let clean = mod.intersection([.shift, .control, .alternate, .command])
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.delegate?.displayView(
+                self,
+                sendCapturedKeyCommandWithInput: UIKeyCommand.inputEscape,
+                modifierFlags: clean)
+        }
+        return true
     }
 
     private func registerCaptureLifecycleObservers() {
