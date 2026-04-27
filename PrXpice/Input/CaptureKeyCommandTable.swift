@@ -134,6 +134,9 @@ enum CaptureKeyCommandTable {
         out.append(Combo(input: "\t", flags: .command))
         out.append(Combo(input: " ",  flags: .command))
         out.append(Combo(input: UIKeyCommand.inputEscape, flags: .command))
+        // Ctrl+Esc: opens Start menu on Windows guests; otherwise stolen by
+        // AppKit fullscreen exit if not intercepted here.
+        out.append(Combo(input: UIKeyCommand.inputEscape, flags: .control))
 
         // Navigation cluster with Cmd.
         for nav in navigationInputs {
